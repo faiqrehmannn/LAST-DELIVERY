@@ -8,11 +8,11 @@
 // Poore shehar ka grid layout save karne ke liye 2D array
 int cityGrid[MAP_ROWS][MAP_COLS];
 
-// Dukano ki tasveerein (textures) aur unke load hone ka status
+// Dukanon ki tasveerein aur unke load hone ka status
 sf::Texture shopArtTextures[4];
 bool shopArtLoaded[4] = {false, false, false, false};
 
-// Tamam shops aur post office ki images ko memory mein load karne ka function
+// Tamam shops aur post office ki images memory mein load karta hai
 void loadShopArt()
 {
     const std::string shopArtPaths[4] = {
@@ -24,12 +24,15 @@ void loadShopArt()
 
     for (int i = 0; i < 4; i++)
     {
-        shopArtLoaded[i] = shopArtTextures[i].loadFromFile(shopArtPaths[i]);
+        shopArtLoaded[i] =
+            shopArtTextures[i].loadFromFile(shopArtPaths[i]);
         shopArtTextures[i].setSmooth(false);
     }
 }
 
-// Default city map ko grid mein set karne ka function (0=Road, 1=Building, 2=Park, 3=Shop, 4=House, 5=Obstacle)
+// Default city map set karta hai:
+// 0 = road, 1 = building, 2 = park, 3 = shop,
+// 4 = house, 5 = obstacle
 void loadDefaultCity()
 {
     int city[MAP_ROWS][MAP_COLS] = {
@@ -59,18 +62,20 @@ void loadDefaultCity()
     }
 }
 
-// Check karta hai ke koi tile thos (solid) hai ya nahi taake rider us se guzar na sake
+// Check karta hai ke tile solid hai ya nahi
 bool isSolidTile(int row, int col)
 {
-    if (row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS)
+    if (row < 0 || row >= MAP_ROWS ||
+        col < 0 || col >= MAP_COLS)
     {
         return true;
     }
 
-    return cityGrid[row][col] == TILE_BUILDING || cityGrid[row][col] == TILE_PARK;
+    return cityGrid[row][col] == TILE_BUILDING ||
+           cityGrid[row][col] == TILE_PARK;
 }
 
-// Grid ke row aur column ko screen ke center pixel coordinates mein badalta hai
+// Grid ke row/column ko screen ke center pixels mein badalta hai
 sf::Vector2f tileToPixelCenter(int row, int col)
 {
     return sf::Vector2f(
@@ -79,10 +84,9 @@ sf::Vector2f tileToPixelCenter(int row, int col)
     );
 }
 
-// Park mein darakht (tree) aur uska saya draw karne ka function
+// Park mein darakht aur uska saya draw karta hai
 void drawTree(sf::RenderWindow& window, float x, float y, int variant)
 {
-    // Darakht ke neeche halka saya
     sf::CircleShape shadow(12.0f);
     shadow.setOrigin(12.0f, 12.0f);
     shadow.setScale(1.25f, 0.55f);
@@ -90,7 +94,6 @@ void drawTree(sf::RenderWindow& window, float x, float y, int variant)
     shadow.setFillColor(sf::Color(25, 54, 39, 110));
     window.draw(shadow);
 
-    // Darakht ka tana (trunk)
     sf::RectangleShape trunk(sf::Vector2f(5.0f, 9.0f));
     trunk.setOrigin(2.5f, 1.0f);
     trunk.setPosition(x, y + 4.0f);
@@ -103,7 +106,6 @@ void drawTree(sf::RenderWindow& window, float x, float y, int variant)
         sf::Color(31, 101, 68)
     };
 
-    // Darakht ke patton ka ghera (crown)
     sf::CircleShape crown(12.0f);
     crown.setOrigin(12.0f, 12.0f);
     crown.setPosition(x, y - 2.0f);
@@ -112,7 +114,6 @@ void drawTree(sf::RenderWindow& window, float x, float y, int variant)
     crown.setOutlineColor(sf::Color(24, 82, 55));
     window.draw(crown);
 
-    // Dhoop ki chamak dikhane ke liye halka sabz highlight
     sf::CircleShape highlight(4.0f);
     highlight.setOrigin(4.0f, 4.0f);
     highlight.setPosition(x - 4.0f, y - 6.0f);
@@ -120,27 +121,28 @@ void drawTree(sf::RenderWindow& window, float x, float y, int variant)
     window.draw(highlight);
 }
 
-// Sadak aur uski lines aur zebra crossing draw karne ka function
-void drawRoad(sf::RenderWindow& window, int row, int col, float x, float y)
+// Sadak, center lines aur zebra crossing draw karta hai
+void drawRoad(sf::RenderWindow& window, int row, int col,
+              float x, float y)
 {
     sf::RectangleShape asphalt(sf::Vector2f(TILE_SIZE, TILE_SIZE));
     asphalt.setPosition(x, y);
     asphalt.setFillColor(sf::Color(48, 57, 67));
     window.draw(asphalt);
 
-    // Check karein ke aas paas upar/neeche ya dayein/bayein sadak mojood hai ya nahi
     const bool vertical =
         (row > 0 && cityGrid[row - 1][col] == TILE_ROAD) ||
-        (row + 1 < MAP_ROWS && cityGrid[row + 1][col] == TILE_ROAD);
+        (row + 1 < MAP_ROWS &&
+         cityGrid[row + 1][col] == TILE_ROAD);
 
     const bool horizontal =
         (col > 0 && cityGrid[row][col - 1] == TILE_ROAD) ||
-        (col + 1 < MAP_COLS && cityGrid[row][col + 1] == TILE_ROAD);
+        (col + 1 < MAP_COLS &&
+         cityGrid[row][col + 1] == TILE_ROAD);
 
     sf::RectangleShape dash(sf::Vector2f(2.0f, 7.0f));
     dash.setFillColor(sf::Color(210, 190, 120, 165));
 
-    // Seedhi (vertical) sadak ki beech wali peeli lines
     if (vertical)
     {
         dash.setPosition(x + TILE_SIZE / 2.0f - 1.0f, y + 7.0f);
@@ -149,7 +151,6 @@ void drawRoad(sf::RenderWindow& window, int row, int col, float x, float y)
         window.draw(dash);
     }
 
-    // Aari (horizontal) sadak ki beech wali peeli lines
     if (horizontal)
     {
         dash.setSize(sf::Vector2f(7.0f, 2.0f));
@@ -159,7 +160,7 @@ void drawRoad(sf::RenderWindow& window, int row, int col, float x, float y)
         window.draw(dash);
     }
 
-    // Jahan vertical aur horizontal sadkein milti hain wahan zebra crossing banayein
+    // Jahan dono directions ki roads milti hain, wahan crossing banata hai
     if (vertical && horizontal)
     {
         sf::RectangleShape stripe(sf::Vector2f(4.0f, 7.0f));
@@ -176,15 +177,15 @@ void drawRoad(sf::RenderWindow& window, int row, int col, float x, float y)
     }
 }
 
-// Shehar ki imarat (building) ko chhat aur khidkiyon ke sath draw karne ka function
-void drawBuilding(sf::RenderWindow& window, int row, int col, float x, float y)
+// Chhat, saya aur khidkiyon ke sath building draw karta hai
+void drawBuilding(sf::RenderWindow& window, int row, int col,
+                  float x, float y)
 {
     sf::RectangleShape lot(sf::Vector2f(TILE_SIZE, TILE_SIZE));
     lot.setPosition(x, y);
     lot.setFillColor(sf::Color(177, 169, 150));
     window.draw(lot);
 
-    // Building ka saya
     sf::RectangleShape shadow(sf::Vector2f(38.0f, 39.0f));
     shadow.setPosition(x + 7.0f, y + 8.0f);
     shadow.setFillColor(sf::Color(52, 56, 62, 100));
@@ -197,7 +198,6 @@ void drawBuilding(sf::RenderWindow& window, int row, int col, float x, float y)
         sf::Color(118, 79, 72)
     };
 
-    // Building ki chhat (roof)
     sf::RectangleShape roof(sf::Vector2f(38.0f, 36.0f));
     roof.setPosition(x + 5.0f, y + 4.0f);
     roof.setFillColor(roofs[(row * 7 + col * 3) % 4]);
@@ -205,23 +205,22 @@ void drawBuilding(sf::RenderWindow& window, int row, int col, float x, float y)
     roof.setOutlineColor(sf::Color(93, 65, 57));
     window.draw(roof);
 
-    // Chhat ke kinare par roshni ka hissa
     sf::RectangleShape roofLight(sf::Vector2f(30.0f, 3.0f));
     roofLight.setPosition(x + 9.0f, y + 7.0f);
     roofLight.setFillColor(sf::Color(208, 147, 106, 150));
     window.draw(roofLight);
 
-    // Building ki do khidkiyan (windows)
-    sf::RectangleShape window(sf::Vector2f(8.0f, 9.0f));
-    window.setPosition(x + 10.0f, y + 18.0f);
-    window.setFillColor(sf::Color(105, 157, 173));
-    window.draw(window);
+    // Is variable ka naam buildingWindow hai taake render window se conflict na ho
+    sf::RectangleShape buildingWindow(sf::Vector2f(8.0f, 9.0f));
+    buildingWindow.setFillColor(sf::Color(105, 157, 173));
+    buildingWindow.setPosition(x + 10.0f, y + 18.0f);
+    window.draw(buildingWindow);
 
-    window.setPosition(x + 29.0f, y + 18.0f);
-    window.draw(window);
+    buildingWindow.setPosition(x + 29.0f, y + 18.0f);
+    window.draw(buildingWindow);
 }
 
-// Ghar (house) ko lawn, tikoni chhat aur darwaze ke sath draw karne ka function
+// Lawn, chhat aur darwaze ke sath house draw karta hai
 void drawHouse(sf::RenderWindow& window, float x, float y)
 {
     sf::RectangleShape yard(sf::Vector2f(TILE_SIZE, TILE_SIZE));
@@ -229,7 +228,6 @@ void drawHouse(sf::RenderWindow& window, float x, float y)
     yard.setFillColor(sf::Color(157, 176, 130));
     window.draw(yard);
 
-    // Ghar ki tikoni chhat (pentagon shape)
     sf::ConvexShape roof;
     roof.setPointCount(5);
     roof.setPoint(0, sf::Vector2f(6.0f, 22.0f));
@@ -243,21 +241,20 @@ void drawHouse(sf::RenderWindow& window, float x, float y)
     roof.setOutlineColor(sf::Color(91, 53, 48));
     window.draw(roof);
 
-    // Ghar ki samne wali deewar
     sf::RectangleShape face(sf::Vector2f(22.0f, 17.0f));
     face.setPosition(x + 13.0f, y + 22.0f);
     face.setFillColor(sf::Color(220, 190, 146));
     window.draw(face);
 
-    // Ghar ka darwaza
     sf::RectangleShape door(sf::Vector2f(6.0f, 12.0f));
     door.setPosition(x + 21.0f, y + 27.0f);
     door.setFillColor(sf::Color(92, 58, 45));
     window.draw(door);
 }
 
-// Makhsoos coordinates ke mutabiq dukan (shop) ki tasveer draw karne ka function
-void drawShop(sf::RenderWindow& window, int row, int col, float x, float y)
+// Map ki location ke mutabiq shop ki image chunta hai
+void drawShop(sf::RenderWindow& window, int row, int col,
+              float x, float y)
 {
     sf::RectangleShape sidewalk(sf::Vector2f(TILE_SIZE, TILE_SIZE));
     sidewalk.setPosition(x, y);
@@ -266,7 +263,6 @@ void drawShop(sf::RenderWindow& window, int row, int col, float x, float y)
 
     int shopIndex = 1;
 
-    // Map par dukan ki jagah ke hisab se sahi image chunein
     if (row == 2 && col == 4)
         shopIndex = 2;
     else if (row == 7 && col == 2)
@@ -276,10 +272,10 @@ void drawShop(sf::RenderWindow& window, int row, int col, float x, float y)
     else if (row == 12 && col == 10)
         shopIndex = 3;
 
-    // Agar tasveer load ho chuki hai to usay tile ke size ke mutabiq scale karein
     if (shopArtLoaded[shopIndex])
     {
-        const sf::Vector2u imageSize = shopArtTextures[shopIndex].getSize();
+        const sf::Vector2u imageSize =
+            shopArtTextures[shopIndex].getSize();
 
         if (imageSize.x > 0 && imageSize.y > 0)
         {
@@ -289,8 +285,6 @@ void drawShop(sf::RenderWindow& window, int row, int col, float x, float y)
 
             sf::Sprite shopSprite(shopArtTextures[shopIndex]);
             shopSprite.setScale(scale, scale);
-            
-            // Tasveer ko tile ke bilkul darmiyan (center) mein set karein
             shopSprite.setPosition(
                 x + (TILE_SIZE - imageSize.x * scale) / 2.0f,
                 y + (TILE_SIZE - imageSize.y * scale) / 2.0f
@@ -301,7 +295,7 @@ void drawShop(sf::RenderWindow& window, int row, int col, float x, float y)
         }
     }
 
-    // Agar dukan ki tasveer load na ho sake to fallback ke tor par sada dukan draw karein
+    // Image load na ho to simple shop draw karta hai
     sf::RectangleShape shopFront(sf::Vector2f(38.0f, 32.0f));
     shopFront.setPosition(x + 5.0f, y + 10.0f);
     shopFront.setFillColor(sf::Color(228, 215, 188));
@@ -309,14 +303,13 @@ void drawShop(sf::RenderWindow& window, int row, int col, float x, float y)
     shopFront.setOutlineColor(sf::Color(86, 75, 67));
     window.draw(shopFront);
 
-    // Dukan ke upar wala shed (awning)
     sf::RectangleShape awning(sf::Vector2f(40.0f, 9.0f));
     awning.setPosition(x + 4.0f, y + 8.0f);
     awning.setFillColor(sf::Color(39, 139, 111));
     window.draw(awning);
 }
 
-// Poore city map ke har row aur column ko check kar ke screen par draw karne ka main function
+// Har grid tile ko uski type ke mutabiq draw karta hai
 void drawCityMap(sf::RenderWindow& window)
 {
     for (int row = 0; row < MAP_ROWS; row++)
@@ -337,13 +330,12 @@ void drawCityMap(sf::RenderWindow& window)
             }
             else if (tile == TILE_PARK)
             {
-                // Park ke liye pehle sabz ghaas (grass) bichayein
-                sf::RectangleShape grass(sf::Vector2f(TILE_SIZE, TILE_SIZE));
+                sf::RectangleShape grass(
+                    sf::Vector2f(TILE_SIZE, TILE_SIZE));
                 grass.setPosition(x, y);
                 grass.setFillColor(sf::Color(62, 119, 80));
                 window.draw(grass);
 
-                // Phir ghaas ke upar thodi mukhtalif jagah par darakht lagayein
                 drawTree(
                     window,
                     x + 12.0f + (col % 3) * 5.0f,
@@ -361,10 +353,8 @@ void drawCityMap(sf::RenderWindow& window)
             }
             else if (tile == TILE_OBSTACLE)
             {
-                // Rukawat (pothole) dikhane ke liye pehle neeche sadak draw karein
                 drawRoad(window, row, col, x, y);
 
-                // Sadak ke beech mein khadda (pothole) banayein
                 sf::CircleShape pothole(8.0f);
                 pothole.setOrigin(8.0f, 8.0f);
                 pothole.setPosition(x + 24.0f, y + 24.0f);

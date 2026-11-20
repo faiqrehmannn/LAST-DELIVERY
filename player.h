@@ -6,14 +6,16 @@
 #include "constant.h"
 #include "Map.h"
 
-// Player ki mojooda position, rukh (angle) aur halat (states) ke variables
+// Rider ki current position aur direction
 sf::Vector2f playerPosition(0.0f, 0.0f);
 float playerAngle = 0.0f;
-bool hittingObstacle = false;
-bool wallImpact = false;
 int currentCharacter = 0;
 
-// Game shuru hone par player ko uski shuruati jagah aur character ke sath set karne ka function
+// Pothole aur wall se contact ka status
+bool hittingObstacle = false;
+bool wallImpact = false;
+
+// Rider ko selected character aur starting position deta hai
 void setupPlayer(int characterID, sf::Vector2f startPosition)
 {
     if (characterID >= 0 && characterID < CHARACTER_COUNT)
@@ -27,7 +29,7 @@ void setupPlayer(int characterID, sf::Vector2f startPosition)
     wallImpact = false;
 }
 
-// Kisi bhi di gayi jagah par rider ka collision hitbox calculate karta hai
+// Player ki collision box ko di hui position par calculate karta hai
 sf::FloatRect getPlayerBoundsAt(float centerX, float centerY)
 {
     const float size = RIDER_HITBOX_SIZE[currentCharacter];
@@ -40,39 +42,39 @@ sf::FloatRect getPlayerBoundsAt(float centerX, float centerY)
     );
 }
 
-// Player ki mojooda jagah ka hitbox wapas karta hai
+// Player ki current collision box deta hai
 sf::FloatRect getPlayerBounds()
 {
     return getPlayerBoundsAt(playerPosition.x, playerPosition.y);
 }
 
-// Check karta hai ke player nayi jagah par ja sakta hai ya koi deewar/park rasta rok rahi hai
+// Check karta hai ke nayi position par player kisi solid tile se takrayega ya nahi
 bool canPlayerMoveTo(float newX, float newY)
 {
     const sf::FloatRect box = getPlayerBoundsAt(newX, newY);
 
-    // Pehle check karein ke player map ki boundary se bahar to nahi nikal raha
-    if (box.left < 0.0f || box.top < 0.0f ||
+    // Map ke bahar jana allowed nahi
+    if (box.left < 0.0f ||
+        box.top < 0.0f ||
         box.left + box.width > MAP_PIXEL_W ||
         box.top + box.height > MAP_PIXEL_H)
     {
         return false;
     }
 
-    // Hitbox ke chaaron konon (corners) ke grid rows aur columns nikalein
     const int firstRow = box.top / TILE_SIZE;
     const int lastRow = (box.top + box.height - 1.0f) / TILE_SIZE;
     const int firstCol = box.left / TILE_SIZE;
     const int lastCol = (box.left + box.width - 1.0f) / TILE_SIZE;
 
-    // Agar chaaron konon mein se kahin bhi solid tile nahi hai, to rasta saaf hai
+    // Collision box ke char corners check hote hain
     return !isSolidTile(firstRow, firstCol) &&
            !isSolidTile(firstRow, lastCol) &&
            !isSolidTile(lastRow, firstCol) &&
            !isSolidTile(lastRow, lastCol);
 }
 
-// Check karta hai ke player kisi rukawat (pothole/obstacle) ke upar se guzar raha hai ya nahi
+// Check karta hai ke rider pothole tile par hai ya nahi
 bool isPlayerOnObstacle()
 {
     const sf::FloatRect box = getPlayerBounds();
@@ -98,36 +100,39 @@ bool isPlayerOnObstacle()
     return false;
 }
 
-// Keyboard inputs ke mutabiq player ki harkat (movement) aur speed update karne ka function
+// Keyboard input ke mutabiq rider move karta hai
 void updatePlayerMovement(float deltaTime)
 {
     float moveX = 0.0f;
     float moveY = 0.0f;
 
-    // WASD ya Arrow keys se direction input lein
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) || sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) ||
+        sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
     {
         moveY = -1.0f;
     }
 
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) || sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) ||
+        sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
     {
         moveY = 1.0f;
     }
 
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) || sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) ||
+        sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
     {
         moveX = -1.0f;
     }
 
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) || sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) ||
+        sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
     {
         moveX = 1.0f;
     }
 
+    // Diagonal movement ko normalize karta hai taake speed zyada na ho
     const float length = std::sqrt(moveX * moveX + moveY * moveY);
 
-    // Tirchi (diagonal) movement ki speed barabar rakhne ke liye normalize karein aur angle set karein
     if (length > 0.0f)
     {
         moveX = moveX / length;
@@ -147,7 +152,6 @@ void updatePlayerMovement(float deltaTime)
 
     float speed = RIDER_MAX_SPEED[currentCharacter];
 
-    // Agar rider khadde/rukawat ke upar hai to uski speed kam kar dein
     if (hittingObstacle)
     {
         speed = speed * RIDER_OBSTACLE_FACTOR[currentCharacter];
@@ -159,7 +163,7 @@ void updatePlayerMovement(float deltaTime)
 
     wallImpact = false;
 
-    // X aur Y axis ko alag alag move karein taake rider deewar ke sath phisal (slide) sake
+    // X aur Y alag move karne se wall ke saath slide karna mumkin hota hai
     if (moveX != 0.0f)
     {
         if (canPlayerMoveTo(newX, playerPosition.y))
@@ -179,34 +183,39 @@ void updatePlayerMovement(float deltaTime)
     hittingObstacle = isPlayerOnObstacle();
 }
 
-// Screen par rider ki sawari (vehicle) aur uska saya draw karne ka function
+// Rider aur uske neeche shadow draw karta hai
 void drawPlayer(sf::RenderWindow& window, sf::Sprite vehicleSprite)
 {
     const float size = RIDER_HITBOX_SIZE[currentCharacter];
     const sf::IntRect textureArea = vehicleSprite.getTextureRect();
 
-    // Sprite ka center point set karein taake rotation bilkul darmiyan se ho
-    vehicleSprite.setOrigin(textureArea.width / 2.0f, textureArea.height / 2.0f);
+    vehicleSprite.setOrigin(
+        textureArea.width / 2.0f,
+        textureArea.height / 2.0f
+    );
+
     vehicleSprite.setPosition(playerPosition);
 
-    // Teeno sawariyon ki tasveeron ka size ek jaisa rakhein
+    // Teeno vehicles ko same visual scale par rakhta hai
     vehicleSprite.setScale(0.10f, 0.10f);
 
     float imageAngle = playerAngle - 90.0f;
 
-    // Beamer (BMW) ki tasveer side-view hai, is liye upar/neeche jate waqt usay teda na karein
     if (currentCharacter == 2)
     {
+        // Beamer side-view image hai; vertical travel par usay side par nahi ghumate
         imageAngle = playerAngle == 90.0f ? 180.0f : 0.0f;
     }
 
     vehicleSprite.setRotation(imageAngle);
 
-    // Sawari ke neeche halka saya draw karein
     sf::CircleShape shadow(size * 0.72f);
     shadow.setOrigin(size * 0.72f, size * 0.72f);
     shadow.setScale(1.25f, 0.55f);
-    shadow.setPosition(playerPosition.x + 3.0f, playerPosition.y + 7.0f);
+    shadow.setPosition(
+        playerPosition.x + 3.0f,
+        playerPosition.y + 7.0f
+    );
     shadow.setFillColor(sf::Color(10, 16, 23, 115));
     window.draw(shadow);
 

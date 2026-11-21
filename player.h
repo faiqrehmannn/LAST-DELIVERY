@@ -167,23 +167,6 @@ void updatePlayerMovement(float deltaTime)
     {
         moveX = moveX / length;
         moveY = moveY / length;
-
-                if (moveX > 0.0f && moveY < 0.0f)
-            playerAngle = 45.0f;
-        else if (moveX > 0.0f && moveY > 0.0f)
-            playerAngle = 135.0f;
-        else if (moveX < 0.0f && moveY > 0.0f)
-            playerAngle = 225.0f;
-        else if (moveX < 0.0f && moveY < 0.0f)
-            playerAngle = 315.0f;
-        else if (moveX > 0.0f)
-            playerAngle = 90.0f;
-        else if (moveX < 0.0f)
-            playerAngle = 270.0f;
-        else if (moveY > 0.0f)
-            playerAngle = 180.0f;
-        else
-            playerAngle = 0.0f;
     }
 
        hittingObstacle = isPlayerOnObstacle();

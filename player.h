@@ -53,7 +53,6 @@ bool canPlayerMoveTo(float newX, float newY)
 {
     const sf::FloatRect box = getPlayerBoundsAt(newX, newY);
 
-    // Map ke bahar jana allowed nahi
     if (box.left < 0.0f ||
         box.top < 0.0f ||
         box.left + box.width > MAP_PIXEL_W ||
@@ -61,6 +60,27 @@ bool canPlayerMoveTo(float newX, float newY)
     {
         return false;
     }
+
+    const int firstRow = box.top / TILE_SIZE;
+    const int lastRow =
+        (box.top + box.height - 1.0f) / TILE_SIZE;
+    const int firstCol = box.left / TILE_SIZE;
+    const int lastCol =
+        (box.left + box.width - 1.0f) / TILE_SIZE;
+
+    for (int row = firstRow; row <= lastRow; row++)
+    {
+        for (int col = firstCol; col <= lastCol; col++)
+        {
+            if (isSolidTile(row, col))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
 
     const int firstRow = box.top / TILE_SIZE;
     const int lastRow = (box.top + box.height - 1.0f) / TILE_SIZE;

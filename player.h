@@ -249,7 +249,23 @@ void drawPlayer(sf::RenderWindow& window, sf::Sprite vehicleSprite)
     vehicleSprite.setPosition(playerPosition);
 
     // Teeno vehicles ko same visual scale par rakhta hai
-    vehicleSprite.setScale(0.10f, 0.10f);
+        if (textureArea.width > 0 && textureArea.height > 0)
+    {
+        const float imageWidth = textureArea.width;
+        const float imageHeight = textureArea.height;
+
+        const float longestSide =
+            imageWidth > imageHeight ? imageWidth : imageHeight;
+
+        const float desiredLongestSide = 34.0f;
+        const float imageScale = desiredLongestSide / longestSide;
+
+        vehicleSprite.setScale(imageScale, imageScale);
+    }
+    else
+    {
+        vehicleSprite.setScale(0.10f, 0.10f);
+    }
 
     float imageAngle = playerAngle - 90.0f;
 

@@ -19,7 +19,33 @@ static void drawText(sf::RenderWindow& window, sf::Font& font, bool fontOk,
     text.setFillColor(color);
     window.draw(text);
 }
+// Check karta hai ke rider current order ke target ke qareeb hai.
+bool isNearCurrentOrderTarget()
+{
+    if (!hasCurrentOrder())
+    {
+        return false;
+    }
 
+    const int orderIndex = currentOrderIndex;
+
+    const int targetRow = orderPackagePickedUp[orderIndex]
+        ? orderDropRows[orderIndex]
+        : orderPickupRows[orderIndex];
+
+    const int targetCol = orderPackagePickedUp[orderIndex]
+        ? orderDropCols[orderIndex]
+        : orderPickupCols[orderIndex];
+
+    const sf::Vector2f target =
+        tileToPixelCenter(targetRow, targetCol);
+
+    const float differenceX = playerPosition.x - target.x;
+    const float differenceY = playerPosition.y - target.y;
+
+    return differenceX * differenceX + differenceY * differenceY
+        <= 28.0f * 28.0f;
+}
 int main()
 {
     sf::RenderWindow window(sf::VideoMode(WINDOW_W, WINDOW_H),

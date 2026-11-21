@@ -6,287 +6,134 @@
 #include "constant.h"
 #include "Map.h"
 
-// Rider ki current position aur direction
-sf::Vector2f playerPosition(0.0f, 0.0f);
-float playerAngle = 0.0f;
-int currentCharacter = 0;
+// Player data uses separate variables instead of a user-defined class.
+static sf::Vector2f playerPosition(0.0f, 0.0f);
+static float playerAngle = 0.0f;
+static bool hittingObstacle = false;
+static int currentCharacter = 0;
 
-// Pothole aur wall se contact ka status
-bool hittingObstacle = false;
-bool wallImpact = false;
-
-// Rider ko selected character aur starting position deta hai
-void setupPlayer(int characterID, sf::Vector2f startPosition)
+static void setupPlayer(int characterID, sf::Vector2f startPosition)
 {
     if (characterID >= 0 && characterID < CHARACTER_COUNT)
-    {
         currentCharacter = characterID;
-    }
-
     playerPosition = startPosition;
     playerAngle = 0.0f;
     hittingObstacle = false;
-    wallImpact = false;
 }
 
-// Player ki collision box ko di hui position par calculate karta hai
-sf::FloatRect getPlayerBoundsAt(float centerX, float centerY)
+static sf::FloatRect getPlayerBoundsAt(float centerX, float centerY)
 {
     const float size = RIDER_HITBOX_SIZE[currentCharacter];
-
-    return sf::FloatRect(
-        centerX - size / 2.0f,
-        centerY - size / 2.0f,
-        size,
-        size
-    );
+    return sf::FloatRect(centerX - size / 2.0f, centerY - size / 2.0f,
+                         size, size);
 }
 
-// Player ki current collision box deta hai
-sf::FloatRect getPlayerBounds()
+static sf::FloatRect getPlayerBounds()
 {
     return getPlayerBoundsAt(playerPosition.x, playerPosition.y);
 }
 
-// Check karta hai ke nayi position par player kisi solid tile se takrayega ya nahi
-bool canPlayerMoveTo(float newX, float newY)
+static bool canPlayerMoveTo(float newX, float newY)
 {
     const sf::FloatRect box = getPlayerBoundsAt(newX, newY);
+    const float left = box.left;
+    const float right = box.left + box.width - 1.0f;
+    const float top = box.top;
+    const float bottom = box.top + box.height - 1.0f;
+    const int row1 = top / TILE_SIZE;
+    const int row2 = bottom / TILE_SIZE;
+    const int col1 = left / TILE_SIZE;
+    const int col2 = right / TILE_SIZE;
 
-    if (box.left < 0.0f ||
-        box.top < 0.0f ||
-        box.left + box.width > MAP_PIXEL_W ||
-        box.top + box.height > MAP_PIXEL_H)
-    {
-        return false;
-    }
-
-    const int firstRow = box.top / TILE_SIZE;
-    const int lastRow =
-        (box.top + box.height - 1.0f) / TILE_SIZE;
-    const int firstCol = box.left / TILE_SIZE;
-    const int lastCol =
-        (box.left + box.width - 1.0f) / TILE_SIZE;
-
-    for (int row = firstRow; row <= lastRow; row++)
-    {
-        for (int col = firstCol; col <= lastCol; col++)
-        {
-            if (isSolidTile(row, col))
-            {
-                return false;
-            }
-        }
-    }
-
-    return true;
+    return !isSolidTile(row1, col1) && !isSolidTile(row1, col2) &&
+           !isSolidTile(row2, col1) && !isSolidTile(row2, col2);
 }
 
-// Check karta hai ke rider pothole tile par hai ya nahi
-bool isPlayerOnObstacleAt(float centerX, float centerY)
+static bool isPlayerOnObstacle()
 {
-    const sf::FloatRect box =
-        getPlayerBoundsAt(centerX, centerY);
-
+    const sf::FloatRect box = getPlayerBounds();
     const int firstRow = box.top / TILE_SIZE;
-    const int lastRow =
-        (box.top + box.height - 1.0f) / TILE_SIZE;
+    const int lastRow = (box.top + box.height - 1) / TILE_SIZE;
     const int firstCol = box.left / TILE_SIZE;
-    const int lastCol =
-        (box.left + box.width - 1.0f) / TILE_SIZE;
+    const int lastCol = (box.left + box.width - 1) / TILE_SIZE;
 
     for (int row = firstRow; row <= lastRow; row++)
     {
         for (int col = firstCol; col <= lastCol; col++)
         {
-            if (row >= 0 && row < MAP_ROWS &&
-                col >= 0 && col < MAP_COLS &&
+            if (row >= 0 && row < MAP_ROWS && col >= 0 && col < MAP_COLS &&
                 cityGrid[row][col] == TILE_OBSTACLE)
-            {
                 return true;
-            }
         }
     }
-
     return false;
 }
 
-bool isPlayerOnObstacle()
-{
-    return isPlayerOnObstacleAt(
-        playerPosition.x,
-        playerPosition.y
-    );
-}
-
-// Keyboard input ke mutabiq rider move karta hai
-void updatePlayerMovement(float deltaTime)
+static bool updatePlayerMovement(float deltaTime)
 {
     float moveX = 0.0f;
     float moveY = 0.0f;
 
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) ||
-        sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
-    {
-        moveY -= 1.0f;
-    }
-
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) ||
+        sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) moveY = -1.0f;
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) ||
-        sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
-    {
-        moveY += 1.0f;
-    }
-
+        sf::Keyboard::isKeyPressed(sf::Keyboard::Down)) moveY = 1.0f;
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) ||
-        sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
-    {
-        moveX -= 1.0f;
-    }
-
+        sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) moveX = -1.0f;
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) ||
-        sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
-    {
-        moveX += 1.0f;
-    }
-    // Diagonal movement ko normalize karta hai taake speed zyada na ho
-    const float length = std::sqrt(moveX * moveX + moveY * moveY);
+        sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) moveX = 1.0f;
 
+    const float length = std::sqrt(moveX * moveX + moveY * moveY);
     if (length > 0.0f)
     {
-        moveX = moveX / length;
-        moveY = moveY / length;
+        moveX /= length;
+        moveY /= length;
+        if (moveX > 0.0f) playerAngle = 90.0f;
+        else if (moveX < 0.0f) playerAngle = 270.0f;
+        else if (moveY > 0.0f) playerAngle = 180.0f;
+        else if (moveY < 0.0f) playerAngle = 0.0f;
     }
 
-       hittingObstacle = isPlayerOnObstacle();
-
+    hittingObstacle = isPlayerOnObstacle();
     float speed = RIDER_MAX_SPEED[currentCharacter];
-
-    const float normalDistance = speed * deltaTime;
-    const float predictedX =
-        playerPosition.x + moveX * normalDistance;
-    const float predictedY =
-        playerPosition.y + moveY * normalDistance;
-
-    const bool enteringObstacle =
-        isPlayerOnObstacleAt(predictedX, predictedY);
-
-    if (hittingObstacle || enteringObstacle)
-    {
-        speed = speed * RIDER_OBSTACLE_FACTOR[currentCharacter];
-    }
-
+    if (hittingObstacle) speed *= RIDER_OBSTACLE_FACTOR[currentCharacter];
     const float distance = speed * deltaTime;
     const float newX = playerPosition.x + moveX * distance;
     const float newY = playerPosition.y + moveY * distance;
-    const float oldPlayerX = playerPosition.x;
-    const float oldPlayerY = playerPosition.y;
-    wallImpact = false;
 
-    // X aur Y alag move karne se wall ke saath slide karna mumkin hota hai
-    if (moveX != 0.0f)
-    {
-        if (canPlayerMoveTo(newX, playerPosition.y))
-            playerPosition.x = newX;
-        else
-            wallImpact = true;
-    }
+    bool bumpedIntoWall = false;
+    if (canPlayerMoveTo(newX, playerPosition.y))
+        playerPosition.x = newX;
+    else if (moveX != 0.0f)
+        bumpedIntoWall = true;
 
-    if (moveY != 0.0f)
-    {
-        if (canPlayerMoveTo(playerPosition.x, newY))
-            playerPosition.y = newY;
-        else
-            wallImpact = true;
-    }
-    const float actualMoveX = playerPosition.x - oldPlayerX;
-    const float actualMoveY = playerPosition.y - oldPlayerY;
-
-    if (actualMoveX != 0.0f || actualMoveY != 0.0f)
-    {
-        if (actualMoveX > 0.0f && actualMoveY < 0.0f)
-            playerAngle = 45.0f;
-        else if (actualMoveX > 0.0f && actualMoveY > 0.0f)
-            playerAngle = 135.0f;
-        else if (actualMoveX < 0.0f && actualMoveY > 0.0f)
-            playerAngle = 225.0f;
-        else if (actualMoveX < 0.0f && actualMoveY < 0.0f)
-            playerAngle = 315.0f;
-        else if (actualMoveX > 0.0f)
-            playerAngle = 90.0f;
-        else if (actualMoveX < 0.0f)
-            playerAngle = 270.0f;
-        else if (actualMoveY > 0.0f)
-            playerAngle = 180.0f;
-        else
-            playerAngle = 0.0f;
-    }
+    if (canPlayerMoveTo(playerPosition.x, newY))
+        playerPosition.y = newY;
+    else if (moveY != 0.0f)
+        bumpedIntoWall = true;
     hittingObstacle = isPlayerOnObstacle();
+    return bumpedIntoWall;
 }
 
-// Rider aur uske neeche shadow draw karta hai
-void drawPlayer(sf::RenderWindow& window, sf::Sprite vehicleSprite)
+static void drawPlayer(sf::RenderWindow& window, sf::Sprite vehicleSprite)
 {
     const float size = RIDER_HITBOX_SIZE[currentCharacter];
     const sf::IntRect textureArea = vehicleSprite.getTextureRect();
-
-    vehicleSprite.setOrigin(
-        textureArea.width / 2.0f,
-        textureArea.height / 2.0f
-    );
-
+    vehicleSprite.setOrigin(textureArea.width / 2.0f, textureArea.height / 2.0f);
     vehicleSprite.setPosition(playerPosition);
-
-    // Teeno vehicles ko same visual scale par rakhta hai
-        if (textureArea.width > 0 && textureArea.height > 0)
-    {
-        const float imageWidth = textureArea.width;
-        const float imageHeight = textureArea.height;
-
-        const float longestSide =
-            imageWidth > imageHeight ? imageWidth : imageHeight;
-
-        const float desiredLongestSide = 34.0f;
-        const float imageScale = desiredLongestSide / longestSide;
-
-        vehicleSprite.setScale(imageScale, imageScale);
-    }
-    else
-    {
-        vehicleSprite.setScale(0.10f, 0.10f);
-    }
+    const float vehicleScale = currentCharacter == 2 ? 0.10f : 0.14f;
+    vehicleSprite.setScale(vehicleScale, vehicleScale);
 
     float imageAngle = playerAngle - 90.0f;
-
-    if (currentCharacter == 2)
-    {
-        // Beamer side-view image hai; vertical travel par usay side par nahi ghumate
-        imageAngle = playerAngle == 90.0f ? 180.0f : 0.0f;
-    }
-
+    if (currentCharacter == 2) imageAngle = playerAngle + 90.0f;
     vehicleSprite.setRotation(imageAngle);
-        if (wallImpact)
-    {
-        vehicleSprite.setColor(sf::Color(255, 100, 100));
-    }
-    else if (hittingObstacle)
-    {
-        vehicleSprite.setColor(sf::Color(255, 190, 90));
-    }
-    else
-    {
-        vehicleSprite.setColor(sf::Color::White);
-    }
 
     sf::CircleShape shadow(size * 0.72f);
     shadow.setOrigin(size * 0.72f, size * 0.72f);
     shadow.setScale(1.25f, 0.55f);
-    shadow.setPosition(
-        playerPosition.x + 3.0f,
-        playerPosition.y + 7.0f
-    );
+    shadow.setPosition(playerPosition.x + 3.0f, playerPosition.y + 7.0f);
     shadow.setFillColor(sf::Color(10, 16, 23, 115));
     window.draw(shadow);
-
     window.draw(vehicleSprite);
 }
 

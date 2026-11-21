@@ -38,6 +38,16 @@ Players choose a courier and vehicle, drive around a grid-based city, pick up de
 - SFML 2.x development libraries
 - The SFML package must match the compiler and system architecture
 
+## Game assets
+
+The game loads its font and shop illustrations from `assets/`. CMake copies
+the asset folder next to the game executable after each build, so the game
+can also find these files when it is started from the `build/` folder.
+
+MP3 music is not included in this public repository. The `assets/music/`
+folder contains setup notes; add only songs you have permission to use on
+your own computer. Music playback is not enabled in this version yet.
+
 ## Build and run
 
 The exact command depends on your compiler and where SFML is installed. With a compatible GCC/MinGW setup and SFML 2, the general form is:

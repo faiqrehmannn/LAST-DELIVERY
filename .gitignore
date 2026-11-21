@@ -1,2 +1,3 @@
 build/
 .vs/
+/assets/music/*.mp3

@@ -22,3 +22,12 @@ add_executable(LastDelivery main.cpp)
 target_compile_features(LastDelivery PRIVATE cxx_std_11)
 target_compile_definitions(LastDelivery PRIVATE SFML_STATIC)
 target_link_libraries(LastDelivery PRIVATE sfml-graphics sfml-window sfml-system)
+
+# Keep images and other runtime files beside the executable. This lets the
+# game find assets/ when it is launched from the build folder.
+add_custom_command(
+    TARGET LastDelivery POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets"
+            "$<TARGET_FILE_DIR:LastDelivery>/assets"
+)

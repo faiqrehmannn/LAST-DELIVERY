@@ -1,11 +1,109 @@
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include <iostream>
 #include <string>
+#include <cmath>
 
 #include "Order.h"
 #include "constant.h"
 #include "Map.h"
 #include "player.h"
+
+const int MUSIC_TRACK_COUNT = 3;
+const int SOUND_EFFECT_COUNT = 4;
+
+std::string musicPaths[MUSIC_TRACK_COUNT] = {
+    "assets/music/jeena_jeena.mp3",
+    "assets/music/oh_oh_jane_jaana.mp3",
+    "assets/music/o_re_piya.mp3"
+};
+
+std::string musicTitles[MUSIC_TRACK_COUNT] = {
+    "Jeena Jeena",
+    "Oh Oh Jane Jaana",
+    "O Re Piya"
+};
+
+std::string soundPaths[SOUND_EFFECT_COUNT] = {
+    "assets/sfx/pickup.wav",
+    "assets/sfx/delivery.wav",
+    "assets/sfx/collision.wav",
+    "assets/sfx/failure.wav"
+};
+
+sf::SoundBuffer soundBuffers[SOUND_EFFECT_COUNT];
+sf::Sound soundPlayers[SOUND_EFFECT_COUNT];
+bool soundLoaded[SOUND_EFFECT_COUNT] = {false, false, false, false};
+int selectedMusicTrack = 0;
+std::string musicStatus = "Choose a song and press ENTER to play.";
+bool musicScreenOpen = false;
+bool wasOnObstacle = false;
+
+void loadGameSounds()
+{
+    for (int i = 0; i < SOUND_EFFECT_COUNT; i++)
+    {
+        soundLoaded[i] = soundBuffers[i].loadFromFile(soundPaths[i]);
+        if (soundLoaded[i])
+        {
+            soundPlayers[i].setBuffer(soundBuffers[i]);
+            soundPlayers[i].setVolume(65.0f);
+        }
+        else
+        {
+            std::cout << "Sound effect not found: "
+                      << soundPaths[i] << std::endl;
+        }
+    }
+}
+
+void playGameSound(int soundIndex)
+{
+    if (soundIndex >= 0 && soundIndex < SOUND_EFFECT_COUNT &&
+        soundLoaded[soundIndex])
+    {
+        soundPlayers[soundIndex].play();
+    }
+}
+
+bool playSelectedMusic(sf::Music& music)
+{
+    music.stop();
+    if (!music.openFromFile(musicPaths[selectedMusicTrack]))
+    {
+        musicStatus = "Track missing: " + musicPaths[selectedMusicTrack];
+        std::cout << musicStatus << std::endl;
+        return false;
+    }
+
+    music.setLoop(true);
+    music.setVolume(35.0f);
+    music.play();
+    musicStatus = "Playing: " + musicTitles[selectedMusicTrack];
+    return true;
+}
+
+void changeMusicTrack(int direction, sf::Music& music)
+{
+    selectedMusicTrack = selectedMusicTrack + direction;
+    if (selectedMusicTrack < 0)
+    {
+        selectedMusicTrack = MUSIC_TRACK_COUNT - 1;
+    }
+    else if (selectedMusicTrack >= MUSIC_TRACK_COUNT)
+    {
+        selectedMusicTrack = 0;
+    }
+
+    if (music.getStatus() == sf::Music::Playing)
+    {
+        playSelectedMusic(music);
+    }
+    else
+    {
+        musicStatus = "Selected: " + musicTitles[selectedMusicTrack];
+    }
+}
 
 // Screen par text likhta hai.
 // Agar font load na ho, game phir bhi chalega; sirf text nahi dikhega.
@@ -25,6 +123,90 @@ void drawText(sf::RenderWindow& window, sf::Font& font, bool fontOk,
     text.setPosition(x, y);
     text.setFillColor(color);
     window.draw(text);
+}
+
+void drawMusicPlayer(sf::RenderWindow& window, sf::Font& font, bool fontOk,
+                     sf::Music& music)
+{
+    sf::RectangleShape shade(
+        sf::Vector2f(WINDOW_W, WINDOW_H)
+    );
+    shade.setFillColor(sf::Color(3, 10, 18, 190));
+    window.draw(shade);
+
+    sf::RectangleShape panel(sf::Vector2f(650.0f, 500.0f));
+    panel.setPosition(363.0f, 134.0f);
+    panel.setFillColor(sf::Color(12, 31, 50, 248));
+    panel.setOutlineThickness(3.0f);
+    panel.setOutlineColor(sf::Color(82, 169, 188));
+    window.draw(panel);
+
+    drawText(window, font, fontOk, "MUSIC PLAYER", 36,
+             520.0f, 165.0f, sf::Color(255, 220, 133));
+
+    for (int i = 0; i < MUSIC_TRACK_COUNT; i++)
+    {
+        sf::RectangleShape row(sf::Vector2f(590.0f, 52.0f));
+        row.setPosition(393.0f, 230.0f + i * 66.0f);
+        row.setFillColor(i == selectedMusicTrack
+            ? sf::Color(50, 100, 128)
+            : sf::Color(24, 53, 77));
+        row.setOutlineThickness(i == selectedMusicTrack ? 3.0f : 1.0f);
+        row.setOutlineColor(i == selectedMusicTrack
+            ? sf::Color(255, 220, 133)
+            : sf::Color(87, 132, 157));
+        window.draw(row);
+
+        drawText(window, font, fontOk,
+                 std::to_string(i + 1) + ".  " + musicTitles[i],
+                 20, 418.0f, 242.0f + i * 66.0f,
+                 sf::Color::White);
+    }
+
+    const sf::FloatRect buttonAreas[3] = {
+        sf::FloatRect(393.0f, 450.0f, 175.0f, 54.0f),
+        sf::FloatRect(601.0f, 450.0f, 175.0f, 54.0f),
+        sf::FloatRect(809.0f, 450.0f, 175.0f, 54.0f)
+    };
+    const std::string buttonLabels[3] = {
+        "PREVIOUS", "PLAY / PAUSE", "NEXT"
+    };
+
+    for (int i = 0; i < 3; i++)
+    {
+        sf::RectangleShape button(
+            sf::Vector2f(buttonAreas[i].width, buttonAreas[i].height)
+        );
+        button.setPosition(buttonAreas[i].left, buttonAreas[i].top);
+        button.setFillColor(sf::Color(37, 79, 105));
+        button.setOutlineThickness(2.0f);
+        button.setOutlineColor(sf::Color(82, 169, 188));
+        window.draw(button);
+        drawText(window, font, fontOk, buttonLabels[i], 14,
+                 buttonAreas[i].left + 12.0f,
+                 buttonAreas[i].top + 17.0f,
+                 sf::Color::White);
+    }
+
+    std::string playbackStatus = musicStatus;
+    if (music.getStatus() == sf::Music::Paused)
+    {
+        playbackStatus = "Music paused.";
+    }
+    else if (music.getStatus() == sf::Music::Stopped &&
+             musicStatus.find("Playing:") == 0)
+    {
+        playbackStatus = "Music stopped.";
+    }
+
+    drawText(window, font, fontOk, playbackStatus, 16,
+             405.0f, 525.0f, sf::Color(155, 221, 183));
+    drawText(window, font, fontOk,
+             "UP/DOWN: choose   ENTER: play   SPACE: pause",
+             14, 405.0f, 565.0f, sf::Color(214, 229, 237));
+    drawText(window, font, fontOk,
+             "LEFT/RIGHT: change song   M or ESC: close",
+             14, 405.0f, 592.0f, sf::Color(214, 229, 237));
 }
 
 // Check karta hai rider current pickup ya delivery point ke qareeb hai.
@@ -87,15 +269,132 @@ int main()
     loadShopArt();
     loadDefaultCity();
 
-    // Temporary blue rider image.
-    // Jab vehicle PNG repo mein ho, is image ko us PNG se replace karna.
-    sf::Image riderImage;
-    riderImage.create(300, 100, sf::Color(45, 160, 220));
+    // Har character ki sawari ki image load hoti hai.
+    sf::Texture vehicleTextures[CHARACTER_COUNT];
+    sf::Sprite vehicleSprites[CHARACTER_COUNT];
+    bool vehicleLoaded[CHARACTER_COUNT] = {false, false, false};
+    const std::string vehiclePaths[CHARACTER_COUNT] = {
+        "assets/cycle.jpg",
+        "assets/motorcycle.jpg",
+        "assets/car.jpg"
+    };
 
-    sf::Texture riderTexture;
-    riderTexture.loadFromImage(riderImage);
+    for (int i = 0; i < CHARACTER_COUNT; i++)
+    {
+        sf::Image vehicleImage;
+        if (vehicleImage.loadFromFile(vehiclePaths[i]))
+        {
+            // Cycle aur motorcycle ke bahar ke plain background ko transparent
+            // banata hai. Car ka white body white background se milta hai,
+            // is liye us image ko original rakha gaya hai.
+            if (i < 2)
+            {
+                const sf::Color background = vehicleImage.getPixel(0, 0);
+                const sf::Vector2u imageSize = vehicleImage.getSize();
 
-    sf::Sprite riderSprite(riderTexture);
+                for (unsigned int y = 0; y < imageSize.y; y++)
+                {
+                    for (unsigned int x = 0; x < imageSize.x; x++)
+                    {
+                        const sf::Color pixel = vehicleImage.getPixel(x, y);
+                        const bool matchesBackground =
+                            std::abs(pixel.r - background.r) <= 32 &&
+                            std::abs(pixel.g - background.g) <= 32 &&
+                            std::abs(pixel.b - background.b) <= 32;
+
+                        if (matchesBackground)
+                        {
+                            vehicleImage.setPixel(
+                                x, y,
+                                sf::Color(pixel.r, pixel.g, pixel.b, 0)
+                            );
+                        }
+                    }
+                }
+            }
+
+            const sf::Vector2u imageSize = vehicleImage.getSize();
+            const int imageWidth = imageSize.x;
+            const int imageHeight = imageSize.y;
+            int minX = imageWidth;
+            int minY = imageHeight;
+            int maxX = -1;
+            int maxY = -1;
+            for (unsigned int y = 0; y < imageSize.y; y++)
+            {
+                for (unsigned int x = 0; x < imageSize.x; x++)
+                {
+                    const sf::Color pixel = vehicleImage.getPixel(x, y);
+                    bool visiblePixel = pixel.a > 0;
+                    if (i == 2)
+                    {
+                        visiblePixel = pixel.r < 245 || pixel.g < 245 ||
+                                       pixel.b < 245;
+                    }
+                    if (visiblePixel)
+                    {
+                        const int pixelX = x;
+                        const int pixelY = y;
+                        if (pixelX < minX) minX = pixelX;
+                        if (pixelY < minY) minY = pixelY;
+                        if (pixelX > maxX) maxX = pixelX;
+                        if (pixelY > maxY) maxY = pixelY;
+                    }
+                }
+            }
+
+            vehicleLoaded[i] = vehicleTextures[i].loadFromImage(vehicleImage);
+            if (vehicleLoaded[i])
+            {
+                vehicleTextures[i].setSmooth(false);
+                vehicleSprites[i].setTexture(vehicleTextures[i]);
+                if (maxX > minX && maxY > minY)
+                {
+                    const int padding = 8;
+                    const int left = minX > padding ? minX - padding : 0;
+                    const int top = minY > padding ? minY - padding : 0;
+                    const int right = maxX + padding < imageWidth
+                        ? maxX + padding : imageWidth - 1;
+                    const int bottom = maxY + padding < imageHeight
+                        ? maxY + padding : imageHeight - 1;
+                    vehicleSprites[i].setTextureRect(sf::IntRect(
+                        left, top, right - left + 1, bottom - top + 1
+                    ));
+                }
+            }
+        }
+
+        if (!vehicleLoaded[i])
+        {
+            std::cout << "Vehicle image not found: "
+                      << vehiclePaths[i] << std::endl;
+        }
+    }
+
+    sf::Image arrowImage;
+    sf::Texture targetArrowTexture;
+    bool targetArrowLoaded = false;
+    if (arrowImage.loadFromFile("assets/orders/direction-arrow.png"))
+    {
+        const sf::Vector2u imageSize = arrowImage.getSize();
+        for (unsigned int y = 0; y < imageSize.y; y++)
+        {
+            for (unsigned int x = 0; x < imageSize.x; x++)
+            {
+                const sf::Color pixel = arrowImage.getPixel(x, y);
+                if (pixel.r > 245 && pixel.g > 245 && pixel.b > 245)
+                {
+                    arrowImage.setPixel(
+                        x, y, sf::Color(pixel.r, pixel.g, pixel.b, 0)
+                    );
+                }
+            }
+        }
+        targetArrowLoaded = targetArrowTexture.loadFromImage(arrowImage);
+    }
+
+    loadGameSounds();
+    sf::Music backgroundMusic;
 
     // Naya game shuru hote hi orders ko ek martaba initialize karo.
     resetOrders();
@@ -126,6 +425,62 @@ int main()
 
             if (event.type == sf::Event::KeyPressed)
             {
+                if (musicScreenOpen)
+                {
+                    if (event.key.code == sf::Keyboard::Escape ||
+                        event.key.code == sf::Keyboard::M)
+                    {
+                        musicScreenOpen = false;
+                    }
+                    else if (event.key.code == sf::Keyboard::Up)
+                    {
+                        changeMusicTrack(-1, backgroundMusic);
+                    }
+                    else if (event.key.code == sf::Keyboard::Down)
+                    {
+                        changeMusicTrack(1, backgroundMusic);
+                    }
+                    else if (event.key.code == sf::Keyboard::Left)
+                    {
+                        changeMusicTrack(-1, backgroundMusic);
+                        playSelectedMusic(backgroundMusic);
+                    }
+                    else if (event.key.code == sf::Keyboard::Right)
+                    {
+                        changeMusicTrack(1, backgroundMusic);
+                        playSelectedMusic(backgroundMusic);
+                    }
+                    else if (event.key.code == sf::Keyboard::Enter)
+                    {
+                        playSelectedMusic(backgroundMusic);
+                    }
+                    else if (event.key.code == sf::Keyboard::Space)
+                    {
+                        if (backgroundMusic.getStatus() == sf::Music::Playing)
+                        {
+                            backgroundMusic.pause();
+                            musicStatus = "Music paused.";
+                        }
+                        else if (backgroundMusic.getStatus() == sf::Music::Paused)
+                        {
+                            backgroundMusic.play();
+                            musicStatus = "Playing: " +
+                                musicTitles[selectedMusicTrack];
+                        }
+                        else
+                        {
+                            playSelectedMusic(backgroundMusic);
+                        }
+                    }
+                    continue;
+                }
+
+                if (event.key.code == sf::Keyboard::M)
+                {
+                    musicScreenOpen = true;
+                    continue;
+                }
+
                 // ESC game band karta hai.
                 if (event.key.code == sf::Keyboard::Escape)
                 {
@@ -168,6 +523,7 @@ int main()
                     if (!orderPackagePickedUp[currentOrderIndex])
                     {
                         orderPackagePickedUp[currentOrderIndex] = true;
+                        playGameSound(0);
 
                         orderStatusBanner =
                             "Package picked up! Deliver it to " +
@@ -178,7 +534,60 @@ int main()
                         completeCurrentOrder(
                             RIDER_SCORE_MULTIPLIER[currentCharacter]
                         );
+                        playGameSound(1);
                     }
+                }
+            }
+
+            if (musicScreenOpen &&
+                event.type == sf::Event::MouseButtonPressed &&
+                event.mouseButton.button == sf::Mouse::Left)
+            {
+                const float clickX = event.mouseButton.x;
+                const float clickY = event.mouseButton.y;
+
+                for (int i = 0; i < MUSIC_TRACK_COUNT; i++)
+                {
+                    const sf::FloatRect trackRow(
+                        393.0f, 230.0f + i * 66.0f, 590.0f, 52.0f
+                    );
+                    if (trackRow.contains(clickX, clickY))
+                    {
+                        selectedMusicTrack = i;
+                        playSelectedMusic(backgroundMusic);
+                    }
+                }
+
+                if (sf::FloatRect(393.0f, 450.0f, 175.0f, 54.0f)
+                        .contains(clickX, clickY))
+                {
+                    changeMusicTrack(-1, backgroundMusic);
+                    playSelectedMusic(backgroundMusic);
+                }
+                else if (sf::FloatRect(601.0f, 450.0f, 175.0f, 54.0f)
+                             .contains(clickX, clickY))
+                {
+                    if (backgroundMusic.getStatus() == sf::Music::Playing)
+                    {
+                        backgroundMusic.pause();
+                        musicStatus = "Music paused.";
+                    }
+                    else if (backgroundMusic.getStatus() == sf::Music::Paused)
+                    {
+                        backgroundMusic.play();
+                        musicStatus = "Playing: " +
+                            musicTitles[selectedMusicTrack];
+                    }
+                    else
+                    {
+                        playSelectedMusic(backgroundMusic);
+                    }
+                }
+                else if (sf::FloatRect(809.0f, 450.0f, 175.0f, 54.0f)
+                             .contains(clickX, clickY))
+                {
+                    changeMusicTrack(1, backgroundMusic);
+                    playSelectedMusic(backgroundMusic);
                 }
             }
         }
@@ -187,9 +596,17 @@ int main()
         const bool shiftOver =
             failedCount >= 3 || allOrdersCompleted();
 
-        if (!shiftOver)
+        if (!shiftOver && !musicScreenOpen)
         {
+            const bool obstacleWasHit = hittingObstacle;
+            const bool wallWasHit = wallImpact;
             updatePlayerMovement(deltaTime);
+
+            if ((hittingObstacle && !obstacleWasHit) ||
+                (wallImpact && !wallWasHit))
+            {
+                playGameSound(2);
+            }
 
             if (hasCurrentOrder())
             {
@@ -197,6 +614,7 @@ int main()
 
                 if (isOrderExpired())
                 {
+                    playGameSound(3);
                     failCurrentOrder();
                 }
             }
@@ -249,10 +667,23 @@ int main()
             targetMarker.setOutlineThickness(3.0f);
             targetMarker.setOutlineColor(sf::Color::White);
             window.draw(targetMarker);
+
+            if (targetArrowLoaded)
+            {
+                sf::Sprite targetArrow(targetArrowTexture);
+                const sf::Vector2u arrowSize =
+                    targetArrowTexture.getSize();
+                targetArrow.setOrigin(
+                    arrowSize.x / 2.0f, arrowSize.y / 2.0f
+                );
+                targetArrow.setScale(0.30f, 0.30f);
+                targetArrow.setPosition(target.x, target.y - 24.0f);
+                window.draw(targetArrow);
+            }
         }
 
-        // player.h ke mutabiq drawPlayer ko sprite dena zaroori hai.
-        drawPlayer(window, riderSprite);
+        // Current rider ke mutabiq cycle, motorcycle, ya car draw hoti hai.
+        drawPlayer(window, vehicleSprites[currentCharacter]);
 
         // Right-side information panel.
         sf::RectangleShape sidePanel(
@@ -280,13 +711,9 @@ int main()
                  VEHICLE_NAMES[currentCharacter],
                  18, panelX, 116.0f, sf::Color::White);
 
+        const int riderSpeed = RIDER_MAX_SPEED[currentCharacter];
         drawText(window, font, fontOk,
-                 "Speed: " +
-                 std::to_string(
-                     static_cast<int>(
-                         RIDER_MAX_SPEED[currentCharacter]
-                     )
-                 ),
+                 "Speed: " + std::to_string(riderSpeed),
                  18, panelX, 170.0f, sf::Color::White);
 
         drawText(window, font, fontOk,
@@ -329,13 +756,9 @@ int main()
                          sf::Color(115, 234, 156));
             }
 
+            const int secondsLeft = orderTimesRemaining[orderIndex];
             drawText(window, font, fontOk,
-                     "Time left: " +
-                     std::to_string(
-                         static_cast<int>(
-                             orderTimesRemaining[orderIndex]
-                         )
-                     ) + " sec",
+                     "Time left: " + std::to_string(secondsLeft) + " sec",
                      18, panelX, 425.0f,
                      sf::Color::White);
         }
@@ -356,6 +779,11 @@ int main()
         drawText(window, font, fontOk,
                  "E: pick up / deliver",
                  15, panelX, 650.0f,
+                 sf::Color(117, 177, 201));
+
+        drawText(window, font, fontOk,
+                 "M: music player",
+                 15, panelX, 622.0f,
                  sf::Color(117, 177, 201));
 
         drawText(window, font, fontOk,
@@ -426,8 +854,15 @@ int main()
                      sf::Color::White);
         }
 
+        if (musicScreenOpen)
+        {
+            drawMusicPlayer(window, font, fontOk, backgroundMusic);
+        }
+
         window.display();
     }
+
+    backgroundMusic.stop();
 
     return 0;
 }

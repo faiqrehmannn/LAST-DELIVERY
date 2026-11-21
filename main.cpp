@@ -1,190 +1,212 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
+#include <cmath>
 #include <iostream>
 #include <string>
-#include <cmath>
-#include <fstream>
 
-#include "Order.h"
 #include "constant.h"
 #include "Map.h"
 #include "player.h"
+#include "Order.h"
+#include "UIAndFile.h"
 
-const int MUSIC_TRACK_COUNT = 3;
-const int SOUND_EFFECT_COUNT = 4;
+const int MAX_ASSET_PIXELS = 800 * 800;
+static int backgroundPixelStack[MAX_ASSET_PIXELS];
 
-std::string musicPaths[MUSIC_TRACK_COUNT] = {
+const int CHARACTER_CARD_X[CHARACTER_COUNT] = {55, 510, 965};
+const int CHARACTER_CARD_Y = 132;
+const int CHARACTER_CARD_W = 356;
+const int CHARACTER_CARD_H = 548;
+const int MUSIC_TRACK_COUNT = 4;
+const float MUSIC_BUTTON_Y = 468.0f;
+const float MUSIC_TRACK_ROW_Y = 220.0f;
+const float MUSIC_TRACK_ROW_GAP = 56.0f;
+const float MUSIC_TRACK_ROW_HEIGHT = 48.0f;
+const std::string MUSIC_TRACK_PATHS[MUSIC_TRACK_COUNT] = {
+    "assets/music/city_ride_original.wav",
     "assets/music/jeena_jeena.mp3",
     "assets/music/oh_oh_jane_jaana.mp3",
     "assets/music/o_re_piya.mp3"
 };
-
-std::string musicTitles[MUSIC_TRACK_COUNT] = {
-    "Jeena Jeena",
-    "Oh Oh Jane Jaana",
-    "O Re Piya"
+const std::string MUSIC_TRACK_NAMES[MUSIC_TRACK_COUNT] = {
+    "City Ride (Original)", "Jeena Jeena", "Oh Oh Jane Jaana", "O Re Piya"
 };
-
-std::string soundPaths[SOUND_EFFECT_COUNT] = {
+const int GAME_SOUND_COUNT = 4;
+const int SOUND_COLLISION = 0;
+const int SOUND_PICKUP = 1;
+const int SOUND_DELIVERY = 2;
+const int SOUND_FAILURE = 3;
+const std::string GAME_SOUND_PATHS[GAME_SOUND_COUNT] = {
+    "assets/sfx/collision.wav",
     "assets/sfx/pickup.wav",
     "assets/sfx/delivery.wav",
-    "assets/sfx/collision.wav",
     "assets/sfx/failure.wav"
 };
-
-sf::SoundBuffer soundBuffers[SOUND_EFFECT_COUNT];
-sf::Sound soundPlayers[SOUND_EFFECT_COUNT];
-bool soundLoaded[SOUND_EFFECT_COUNT] = {false, false, false, false};
 int selectedMusicTrack = 0;
-std::string musicStatus = "Choose a song and press ENTER to play.";
-bool musicScreenOpen = false;
-bool wasOnObstacle = false;
-GameState currentState = STATE_MENU;
-int selectedCharacter = 0;
-const int HIGH_SCORE_LIMIT = 5;
-std::string highScoreNames[HIGH_SCORE_LIMIT];
-int highScoreValues[HIGH_SCORE_LIMIT] = {0, 0, 0, 0, 0};
-int highScoreCount = 0;
+GameState stateBeforeMusic = STATE_MENU;
+std::string musicMessage = "Choose a song, then press ENTER to play.";
 
-void loadHighScores()
+bool isNearBackground(sf::Color pixel, sf::Color background)
 {
-    std::ifstream input("highscores.txt");
-    highScoreCount = 0;
-    std::string name;
-    int score = 0;
-
-    while (highScoreCount < HIGH_SCORE_LIMIT &&
-           std::getline(input, name, '|') && input >> score)
-    {
-        input.ignore(10000, '\n');
-        highScoreNames[highScoreCount] = name;
-        highScoreValues[highScoreCount] = score;
-        highScoreCount++;
-    }
+    const int tolerance = 22;
+    return std::abs(pixel.r - background.r) <= tolerance &&
+           std::abs(pixel.g - background.g) <= tolerance &&
+           std::abs(pixel.b - background.b) <= tolerance;
 }
 
-void saveHighScores()
+// Makes the flat outside background of each supplied JPG transparent.
+// The fixed stack is an ordinary array; it does not use a vector or pointer.
+bool loadVehicleImage(sf::Texture& texture, sf::Sprite& sprite,
+                      const std::string& filename)
 {
-    std::ofstream output("highscores.txt");
-    for (int i = 0; i < highScoreCount; i++)
+    sf::Image image;
+    if (!image.loadFromFile(filename))
     {
-        output << highScoreNames[i] << '|' << highScoreValues[i] << '\n';
-    }
-}
-
-void addHighScore(const std::string& name, int score)
-{
-    if (score <= 0)
-    {
-        return;
+        std::cout << "Could not load vehicle image: " << filename << std::endl;
+        return false;
     }
 
-    int position = highScoreCount;
-    for (int i = 0; i < highScoreCount; i++)
+    const sf::Vector2u imageSize = image.getSize();
+    const unsigned int pixelCount = imageSize.x * imageSize.y;
+
+    if (pixelCount == 0 || pixelCount > MAX_ASSET_PIXELS)
     {
-        if (score > highScoreValues[i])
+        std::cout << "Vehicle image has an unsupported size: "
+                  << filename << std::endl;
+        return false;
+    }
+
+    const int width = imageSize.x;
+    const int height = imageSize.y;
+
+    const sf::Color background = image.getPixel(0, 0);
+    unsigned int stackSize = 0;
+    image.setPixel(0, 0, sf::Color(0, 0, 0, 0));
+    backgroundPixelStack[stackSize++] = 0;
+
+    while (stackSize > 0)
+    {
+        const int pixelIndex = backgroundPixelStack[--stackSize];
+        const int x = pixelIndex % width;
+        const int y = pixelIndex / width;
+
+        const int neighborX[4] = {
+            x - 1,
+            x + 1,
+            x,
+            x
+        };
+        const int neighborY[4] = {
+            y,
+            y,
+            y - 1,
+            y + 1
+        };
+
+        for (int direction = 0; direction < 4; direction++)
         {
-            position = i;
-            break;
+            const int nextX = neighborX[direction];
+            const int nextY = neighborY[direction];
+
+            if (nextX < 0 || nextX >= width ||
+                nextY < 0 || nextY >= height)
+            {
+                continue;
+            }
+
+            const sf::Color nextPixel = image.getPixel(
+                nextX,
+                nextY
+            );
+
+            if (nextPixel.a != 0 && isNearBackground(nextPixel, background))
+            {
+                image.setPixel(
+                    nextX,
+                    nextY,
+                    sf::Color(0, 0, 0, 0)
+                );
+
+                if (stackSize < MAX_ASSET_PIXELS)
+                {
+                    backgroundPixelStack[stackSize++] = nextY * width + nextX;
+                }
+            }
         }
     }
 
-    if (position >= HIGH_SCORE_LIMIT)
+    if (!texture.loadFromImage(image))
     {
-        return;
+        std::cout << "Could not prepare vehicle image: " << filename << std::endl;
+        return false;
     }
 
-    int newCount = highScoreCount < HIGH_SCORE_LIMIT
-        ? highScoreCount + 1 : HIGH_SCORE_LIMIT;
-    for (int i = newCount - 1; i > position; i--)
-    {
-        highScoreNames[i] = highScoreNames[i - 1];
-        highScoreValues[i] = highScoreValues[i - 1];
-    }
-
-    highScoreNames[position] = name;
-    highScoreValues[position] = score;
-    highScoreCount = newCount;
-    saveHighScores();
-}
-
-void loadGameSounds()
-{
-    for (int i = 0; i < SOUND_EFFECT_COUNT; i++)
-    {
-        soundLoaded[i] = soundBuffers[i].loadFromFile(soundPaths[i]);
-        if (soundLoaded[i])
-        {
-            soundPlayers[i].setBuffer(soundBuffers[i]);
-            soundPlayers[i].setVolume(65.0f);
-        }
-        else
-        {
-            std::cout << "Sound effect not found: "
-                      << soundPaths[i] << std::endl;
-        }
-    }
-}
-
-void playGameSound(int soundIndex)
-{
-    if (soundIndex >= 0 && soundIndex < SOUND_EFFECT_COUNT &&
-        soundLoaded[soundIndex])
-    {
-        soundPlayers[soundIndex].play();
-    }
+    texture.setSmooth(false);
+    sprite.setTexture(texture);
+    return true;
 }
 
 bool playSelectedMusic(sf::Music& music)
 {
     music.stop();
-    if (!music.openFromFile(musicPaths[selectedMusicTrack]))
+    if (!music.openFromFile(MUSIC_TRACK_PATHS[selectedMusicTrack]))
     {
-        musicStatus = "Track missing: " + musicPaths[selectedMusicTrack];
-        std::cout << musicStatus << std::endl;
+        musicMessage = "Could not open " + MUSIC_TRACK_PATHS[selectedMusicTrack];
+        std::cout << musicMessage << std::endl;
         return false;
     }
 
     music.setLoop(true);
-    music.setVolume(35.0f);
+    music.setVolume(28.0f);
     music.play();
-    musicStatus = "Playing: " + musicTitles[selectedMusicTrack];
+    musicMessage = "Now playing: " + MUSIC_TRACK_NAMES[selectedMusicTrack];
     return true;
 }
 
-void changeMusicTrack(int direction, sf::Music& music)
+bool loadGameSound(sf::SoundBuffer& buffer, sf::Sound& sound,
+                   const std::string& filename)
 {
-    selectedMusicTrack = selectedMusicTrack + direction;
-    if (selectedMusicTrack < 0)
+    if (!buffer.loadFromFile(filename))
     {
-        selectedMusicTrack = MUSIC_TRACK_COUNT - 1;
-    }
-    else if (selectedMusicTrack >= MUSIC_TRACK_COUNT)
-    {
-        selectedMusicTrack = 0;
+        std::cout << "Could not load sound effect: " << filename << std::endl;
+        return false;
     }
 
-    if (music.getStatus() == sf::Music::Playing)
-    {
-        playSelectedMusic(music);
-    }
-    else
-    {
-        musicStatus = "Selected: " + musicTitles[selectedMusicTrack];
-    }
+    sound.setBuffer(buffer);
+    sound.setVolume(65.0f);
+    return true;
 }
 
-// Screen par text likhta hai.
-// Agar font load na ho, game phir bhi chalega; sirf text nahi dikhega.
-void drawText(sf::RenderWindow& window, sf::Font& font, bool fontOk,
-              const std::string& message, unsigned int size,
-              float x, float y, sf::Color color)
+void playGameSound(sf::Sound (&sounds)[GAME_SOUND_COUNT],
+                   const bool (&soundLoaded)[GAME_SOUND_COUNT], int soundIndex)
 {
-    if (!fontOk)
+    if (soundIndex < 0 || soundIndex >= GAME_SOUND_COUNT ||
+        !soundLoaded[soundIndex])
     {
         return;
     }
 
+    if (sounds[soundIndex].getStatus() == sf::Sound::Playing)
+        sounds[soundIndex].stop();
+    sounds[soundIndex].play();
+}
+
+void moveMusicSelection(int direction, sf::Music& music)
+{
+    selectedMusicTrack += direction;
+    if (selectedMusicTrack < 0) selectedMusicTrack = MUSIC_TRACK_COUNT - 1;
+    if (selectedMusicTrack >= MUSIC_TRACK_COUNT) selectedMusicTrack = 0;
+
+    if (music.getStatus() != sf::Music::Stopped)
+        playSelectedMusic(music);
+    else
+        musicMessage = "Selected: " + MUSIC_TRACK_NAMES[selectedMusicTrack];
+}
+
+void drawText(sf::RenderWindow& window, sf::Font& font,
+              const std::string& message, unsigned int size,
+              float x, float y, sf::Color color)
+{
     sf::Text text;
     text.setFont(font);
     text.setString(message);
@@ -194,359 +216,401 @@ void drawText(sf::RenderWindow& window, sf::Font& font, bool fontOk,
     window.draw(text);
 }
 
-void drawMusicPlayer(sf::RenderWindow& window, sf::Font& font, bool fontOk,
-                     sf::Music& music)
+void drawDimmedBackground(sf::RenderWindow& window, sf::Sprite& menuBackground)
 {
-    sf::RectangleShape shade(
-        sf::Vector2f(WINDOW_W, WINDOW_H)
-    );
-    shade.setFillColor(sf::Color(3, 10, 18, 190));
-    window.draw(shade);
+    window.draw(menuBackground);
+    sf::RectangleShape dimmer(sf::Vector2f(
+        WINDOW_W,
+        WINDOW_H
+    ));
+    dimmer.setFillColor(sf::Color(6, 18, 36, 205));
+    window.draw(dimmer);
+}
 
-    sf::RectangleShape panel(sf::Vector2f(650.0f, 500.0f));
-    panel.setPosition(363.0f, 134.0f);
-    panel.setFillColor(sf::Color(12, 31, 50, 248));
+void drawMenu(sf::RenderWindow& window, sf::Font& font,
+              sf::Sprite& menuBackground)
+{
+    window.clear(sf::Color(16, 28, 42));
+    window.draw(menuBackground);
+
+    const sf::Vector2i mouse = sf::Mouse::getPosition(window);
+    const sf::FloatRect menuButtons[3] = {
+        sf::FloatRect(140.0f, 295.0f, 400.0f, 125.0f),
+        sf::FloatRect(140.0f, 435.0f, 400.0f, 125.0f),
+        sf::FloatRect(140.0f, 570.0f, 400.0f, 120.0f)
+    };
+
+    for (int i = 0; i < 3; i++)
+    {
+        if (menuButtons[i].contains(
+                mouse.x,
+                mouse.y))
+        {
+            sf::RectangleShape hover(sf::Vector2f(
+                menuButtons[i].width,
+                menuButtons[i].height
+            ));
+            hover.setPosition(menuButtons[i].left, menuButtons[i].top);
+            hover.setFillColor(sf::Color(255, 255, 255, 25));
+            hover.setOutlineThickness(3.0f);
+            hover.setOutlineColor(sf::Color(255, 224, 150));
+            window.draw(hover);
+        }
+    }
+
+    drawText(window, font, "H - HIGH SCORES", 18, 1120.0f, 724.0f,
+             sf::Color::White);
+    drawText(window, font, "M - MUSIC PLAYER", 18, 925.0f, 724.0f,
+             sf::Color::White);
+    window.display();
+}
+
+void drawMusicScreen(sf::RenderWindow& window, sf::Font& font,
+                     sf::Sprite& menuBackground, sf::Music& music)
+{
+    window.clear(sf::Color(10, 25, 42));
+    drawDimmedBackground(window, menuBackground);
+
+    sf::RectangleShape panel(sf::Vector2f(760.0f, 555.0f));
+    panel.setPosition(308.0f, 105.0f);
+    panel.setFillColor(sf::Color(11, 31, 52, 245));
     panel.setOutlineThickness(3.0f);
-    panel.setOutlineColor(sf::Color(82, 169, 188));
+    panel.setOutlineColor(sf::Color(93, 174, 193));
     window.draw(panel);
 
-    drawText(window, font, fontOk, "MUSIC PLAYER", 36,
-             520.0f, 165.0f, sf::Color(255, 220, 133));
+    drawText(window, font, "MUSIC PLAYER", 42, 525.0f, 145.0f,
+             sf::Color(255, 220, 133));
 
     for (int i = 0; i < MUSIC_TRACK_COUNT; i++)
     {
-        sf::RectangleShape row(sf::Vector2f(590.0f, 52.0f));
-        row.setPosition(393.0f, 230.0f + i * 66.0f);
+        const float rowY = MUSIC_TRACK_ROW_Y + i * MUSIC_TRACK_ROW_GAP;
+        sf::RectangleShape row(sf::Vector2f(600.0f, MUSIC_TRACK_ROW_HEIGHT));
+        row.setPosition(388.0f, rowY);
         row.setFillColor(i == selectedMusicTrack
-            ? sf::Color(50, 100, 128)
-            : sf::Color(24, 53, 77));
+            ? sf::Color(55, 103, 132) : sf::Color(22, 49, 72));
         row.setOutlineThickness(i == selectedMusicTrack ? 3.0f : 1.0f);
         row.setOutlineColor(i == selectedMusicTrack
-            ? sf::Color(255, 220, 133)
-            : sf::Color(87, 132, 157));
+            ? sf::Color(255, 220, 133) : sf::Color(75, 115, 139));
         window.draw(row);
 
-        drawText(window, font, fontOk,
-                 std::to_string(i + 1) + ".  " + musicTitles[i],
-                 20, 418.0f, 242.0f + i * 66.0f,
-                 sf::Color::White);
+        drawText(window, font,
+                 std::to_string(i + 1) + ".  " + MUSIC_TRACK_NAMES[i],
+                 20, 420.0f, rowY + 11.0f, sf::Color::White);
     }
 
-    const sf::FloatRect buttonAreas[3] = {
-        sf::FloatRect(393.0f, 450.0f, 175.0f, 54.0f),
-        sf::FloatRect(601.0f, 450.0f, 175.0f, 54.0f),
-        sf::FloatRect(809.0f, 450.0f, 175.0f, 54.0f)
+    // اردو: بٹنوں کو گانوں کی فہرست سے نیچے رکھا ہے تاکہ وہ آپس میں نہ ٹکرائیں۔
+    const sf::FloatRect previousButton(400.0f, MUSIC_BUTTON_Y, 175.0f, 45.0f);
+    const sf::FloatRect playButton(590.0f, MUSIC_BUTTON_Y, 205.0f, 45.0f);
+    const sf::FloatRect nextButton(810.0f, MUSIC_BUTTON_Y, 175.0f, 45.0f);
+    const sf::FloatRect musicButtons[3] = {
+        previousButton, playButton, nextButton
     };
-    const std::string buttonLabels[3] = {
+    const std::string musicButtonLabels[3] = {
         "PREVIOUS", "PLAY / PAUSE", "NEXT"
     };
-
     for (int i = 0; i < 3; i++)
     {
-        sf::RectangleShape button(
-            sf::Vector2f(buttonAreas[i].width, buttonAreas[i].height)
-        );
-        button.setPosition(buttonAreas[i].left, buttonAreas[i].top);
-        button.setFillColor(sf::Color(37, 79, 105));
+        sf::RectangleShape button(sf::Vector2f(
+            musicButtons[i].width, musicButtons[i].height));
+        button.setPosition(musicButtons[i].left, musicButtons[i].top);
+        button.setFillColor(sf::Color(38, 83, 111));
         button.setOutlineThickness(2.0f);
-        button.setOutlineColor(sf::Color(82, 169, 188));
+        button.setOutlineColor(sf::Color(104, 161, 185));
         window.draw(button);
-        drawText(window, font, fontOk, buttonLabels[i], 14,
-                 buttonAreas[i].left + 12.0f,
-                 buttonAreas[i].top + 17.0f,
-                 sf::Color::White);
+        drawText(window, font, musicButtonLabels[i], 15,
+                 musicButtons[i].left + 12.0f,
+                 musicButtons[i].top + 13.0f, sf::Color::White);
     }
 
-    std::string playbackStatus = musicStatus;
-    if (music.getStatus() == sf::Music::Paused)
-    {
-        playbackStatus = "Music paused.";
-    }
-    else if (music.getStatus() == sf::Music::Stopped &&
-             musicStatus.find("Playing:") == 0)
-    {
-        playbackStatus = "Music stopped.";
-    }
-
-    drawText(window, font, fontOk, playbackStatus, 16,
-             405.0f, 525.0f, sf::Color(155, 221, 183));
-    drawText(window, font, fontOk,
-             "UP/DOWN: choose   ENTER: play   SPACE: pause",
-             14, 405.0f, 565.0f, sf::Color(214, 229, 237));
-    drawText(window, font, fontOk,
-             "LEFT/RIGHT: change song   M or ESC: close",
-             14, 405.0f, 592.0f, sf::Color(214, 229, 237));
+    const bool isPlaying = music.getStatus() == sf::Music::Playing;
+    drawText(window, font, isPlaying ? "PLAYING" : "STOPPED / PAUSED",
+             18, 570.0f, 522.0f, sf::Color(170, 220, 190));
+    drawText(window, font, musicMessage, 16, 405.0f, 550.0f,
+             sf::Color(218, 230, 236));
+    drawText(window, font,
+             "Click a song to play it. Keyboard: UP/DOWN select, ENTER play, SPACE pause.",
+             16, 385.0f, 587.0f, sf::Color::White);
+    drawText(window, font, "LEFT/RIGHT: PREVIOUS/NEXT   ESC: BACK",
+             16, 435.0f, 620.0f, sf::Color::White);
+    window.display();
 }
 
-void drawMenuScreen(sf::RenderWindow& window, sf::Font& font, bool fontOk,
-                    sf::Texture& menuTexture, bool menuArtLoaded)
+void drawCharacterSelection(sf::RenderWindow& window, sf::Font& font,
+                            sf::Texture& characterTexture,
+                            sf::Sprite (&vehicleSprites)[CHARACTER_COUNT],
+                            int selectedCharacter)
 {
-    if (menuArtLoaded)
-    {
-        sf::Sprite background(menuTexture);
-        const sf::Vector2u imageSize = menuTexture.getSize();
-        background.setScale(WINDOW_W / (float)imageSize.x,
-                            WINDOW_H / (float)imageSize.y);
-        window.draw(background);
-    }
-    else
-    {
-        window.clear(sf::Color(35, 61, 76));
-        drawText(window, font, fontOk, "LAST DELIVERY", 58,
-                 115.0f, 100.0f, sf::Color(255, 220, 133));
-    }
+    window.clear(sf::Color(9, 22, 42));
 
-    const sf::FloatRect buttons[3] = {
-        sf::FloatRect(140.0f, 303.0f, 395.0f, 112.0f),
-        sf::FloatRect(140.0f, 439.0f, 395.0f, 112.0f),
-        sf::FloatRect(140.0f, 574.0f, 395.0f, 112.0f)
+    sf::RectangleShape topBand(sf::Vector2f(
+        WINDOW_W, 104.0f
+    ));
+    topBand.setFillColor(sf::Color(17, 48, 77));
+    window.draw(topBand);
+
+    drawText(window, font, "CHOOSE YOUR RIDER", 44, 450.0f, 27.0f,
+             sf::Color(255, 220, 133));
+    drawText(window, font, "Select a card, then press ENTER", 20,
+             505.0f, 82.0f, sf::Color(215, 228, 237));
+
+    const sf::IntRect portraitAreas[CHARACTER_COUNT] = {
+        sf::IntRect(111, 82, 82, 198),
+        sf::IntRect(300, 82, 82, 198),
+        sf::IntRect(491, 82, 82, 198)
     };
-    const sf::Vector2i mouse = sf::Mouse::getPosition(window);
 
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < CHARACTER_COUNT; i++)
     {
-        if (buttons[i].contains(mouse.x, mouse.y))
-        {
-            sf::RectangleShape highlight(
-                sf::Vector2f(buttons[i].width, buttons[i].height)
-            );
-            highlight.setPosition(buttons[i].left, buttons[i].top);
-            highlight.setFillColor(sf::Color(255, 220, 133, 35));
-            highlight.setOutlineThickness(3.0f);
-            highlight.setOutlineColor(sf::Color(255, 220, 133));
-            window.draw(highlight);
-        }
+        const float cardX = CHARACTER_CARD_X[i];
+        const float cardY = CHARACTER_CARD_Y;
+
+        sf::RectangleShape card(sf::Vector2f(
+            CHARACTER_CARD_W,
+            CHARACTER_CARD_H
+        ));
+        card.setPosition(cardX, cardY);
+        card.setFillColor(i == selectedCharacter
+            ? sf::Color(36, 74, 110)
+            : sf::Color(24, 48, 77));
+        card.setOutlineThickness(i == selectedCharacter ? 5.0f : 2.0f);
+        card.setOutlineColor(i == selectedCharacter
+            ? sf::Color(255, 208, 96)
+            : sf::Color(95, 145, 180));
+        window.draw(card);
+
+        sf::RectangleShape nameBand(sf::Vector2f(
+            CHARACTER_CARD_W - 4, 62.0f
+        ));
+        nameBand.setPosition(cardX + 2.0f, cardY + 2.0f);
+        nameBand.setFillColor(sf::Color(66, 91, 137));
+        window.draw(nameBand);
+
+        const std::string gender = RIDER_IS_FEMALE[i] ? "WOMAN" : "MAN";
+        drawText(window, font,
+            RIDER_NAMES[i] + "  |  " + gender,
+            25, cardX + 20.0f, cardY + 15.0f, sf::Color::White);
+
+        sf::Sprite portrait(characterTexture);
+        portrait.setTextureRect(portraitAreas[i]);
+        portrait.setScale(1.78f, 1.38f);
+        portrait.setPosition(cardX + 105.0f, cardY + 82.0f);
+        window.draw(portrait);
+
+        sf::RectangleShape vehicleBand(sf::Vector2f(
+            CHARACTER_CARD_W - 20, 132.0f
+        ));
+        vehicleBand.setPosition(cardX + 10.0f, cardY + 365.0f);
+        vehicleBand.setFillColor(sf::Color(13, 30, 49));
+        window.draw(vehicleBand);
+
+        sf::Sprite vehicle(vehicleSprites[i]);
+        const sf::IntRect textureArea = vehicle.getTextureRect();
+        vehicle.setOrigin(textureArea.width / 2.0f, textureArea.height / 2.0f);
+        vehicle.setScale(0.16f, 0.16f);
+        vehicle.setPosition(cardX + CHARACTER_CARD_W / 2.0f,
+                            cardY + 428.0f);
+        window.draw(vehicle);
+
+        drawText(window, font, VEHICLE_NAMES[i], 19,
+                 cardX + 22.0f, cardY + 510.0f,
+                 sf::Color(238, 229, 207));
+        const int riderSpeed = RIDER_MAX_SPEED[i];
+        drawText(window, font,
+                 "SPEED " + std::to_string(riderSpeed) +
+                 "   SCORE x" + std::to_string(RIDER_SCORE_MULTIPLIER[i]),
+                 15, cardX + 22.0f, cardY + 530.0f,
+                 sf::Color(193, 213, 226));
     }
 
-    drawText(window, font, fontOk, "M: MUSIC PLAYER", 16,
-             WINDOW_W - 205.0f, WINDOW_H - 38.0f, sf::Color::White);
-    drawText(window, font, fontOk, "L: LEADERBOARD", 16,
-             WINDOW_W - 205.0f, WINDOW_H - 66.0f, sf::Color::White);
+    drawText(window, font, "1 / 2 / 3: SELECT     ENTER: PLAY     ESC: BACK",
+             20, 400.0f, 704.0f, sf::Color::White);
+    window.display();
 }
 
-void drawRiderCard(sf::RenderWindow& window, sf::Font& font, bool fontOk,
-                   int rider, int selected, float x, sf::Sprite& vehicle)
+void drawInstructions(sf::RenderWindow& window, sf::Font& font,
+                      sf::Sprite& menuBackground)
 {
-    sf::RectangleShape card(sf::Vector2f(250.0f, 315.0f));
-    card.setPosition(x, 200.0f);
-    card.setFillColor(rider == selected
-        ? sf::Color(40, 86, 111) : sf::Color(20, 48, 70));
-    card.setOutlineThickness(rider == selected ? 4.0f : 1.0f);
-    card.setOutlineColor(rider == selected
-        ? sf::Color(255, 220, 133) : sf::Color(83, 132, 154));
-    window.draw(card);
+    window.clear(sf::Color(10, 25, 42));
+    drawDimmedBackground(window, menuBackground);
 
-    sf::Sprite preview = vehicle;
-    const sf::IntRect area = preview.getTextureRect();
-    preview.setOrigin(area.width / 2.0f, area.height / 2.0f);
-    preview.setScale(0.10f, 0.10f);
-    preview.setPosition(x + 125.0f, 275.0f);
-    window.draw(preview);
-
-    const int riderSpeed = RIDER_MAX_SPEED[rider];
-    drawText(window, font, fontOk,
-             std::to_string(rider + 1) + ". " + RIDER_NAMES[rider],
-             22, x + 20.0f, 350.0f, sf::Color::White);
-
-    drawText(window, font, fontOk,
-             RIDER_IS_FEMALE[rider] ? "Girl courier" : "Boy courier",
-             15, x + 20.0f, 386.0f, sf::Color(166, 207, 221));
-    drawText(window, font, fontOk, VEHICLE_NAMES[rider], 16,
-             x + 20.0f, 414.0f, sf::Color(255, 220, 133));
-    drawText(window, font, fontOk,
-             "Speed: " + std::to_string(riderSpeed),
-             14, x + 20.0f, 455.0f, sf::Color(214, 229, 237));
-    drawText(window, font, fontOk,
-             "Score bonus: " +
-             std::to_string(RIDER_SCORE_MULTIPLIER[rider]) + "x",
-             14, x + 20.0f, 482.0f, sf::Color(214, 229, 237));
-}
-
-void drawRiderSelection(sf::RenderWindow& window, sf::Font& font,
-                        bool fontOk, int selected, sf::Sprite& cycle,
-                        sf::Sprite& motorcycle, sf::Sprite& car)
-{
-    sf::RectangleShape shade(sf::Vector2f(WINDOW_W, WINDOW_H));
-    shade.setFillColor(sf::Color(3, 10, 18, 205));
-    window.draw(shade);
-
-    sf::RectangleShape panel(sf::Vector2f(900.0f, 545.0f));
-    panel.setPosition(238.0f, 110.0f);
-    panel.setFillColor(sf::Color(12, 31, 50, 248));
+    sf::RectangleShape panel(sf::Vector2f(920.0f, 520.0f));
+    panel.setPosition(228.0f, 118.0f);
+    panel.setFillColor(sf::Color(11, 31, 52, 242));
     panel.setOutlineThickness(3.0f);
-    panel.setOutlineColor(sf::Color(82, 169, 188));
+    panel.setOutlineColor(sf::Color(93, 174, 193));
     window.draw(panel);
 
-    drawText(window, font, fontOk, "CHOOSE YOUR RIDER", 34,
-             490.0f, 130.0f, sf::Color(255, 220, 133));
-    drawRiderCard(window, font, fontOk, 0, selected, 278.0f, cycle);
-    drawRiderCard(window, font, fontOk, 1, selected, 563.0f, motorcycle);
-    drawRiderCard(window, font, fontOk, 2, selected, 848.0f, car);
-
-    drawText(window, font, fontOk,
-             "Click a rider or press 1, 2, or 3. ENTER starts.",
-             15, 450.0f, 525.0f, sf::Color(214, 229, 237));
-
-    sf::RectangleShape startButton(sf::Vector2f(280.0f, 56.0f));
-    startButton.setPosition(548.0f, 570.0f);
-    startButton.setFillColor(sf::Color(30, 135, 104));
-    startButton.setOutlineThickness(2.0f);
-    startButton.setOutlineColor(sf::Color(155, 221, 183));
-    window.draw(startButton);
-    drawText(window, font, fontOk, "START DELIVERY", 20,
-             602.0f, 585.0f, sf::Color::White);
+    drawText(window, font, "HOW TO PLAY", 44, 520.0f, 155.0f,
+             sf::Color(255, 220, 133));
+    drawText(window, font, "W A S D or arrow keys  -  drive", 26,
+             350.0f, 250.0f, sf::Color::White);
+    drawText(window, font, "Find the green marker to pick up an order", 24,
+             350.0f, 315.0f, sf::Color(219, 233, 240));
+    drawText(window, font, "Take it to the yellow marker before time runs out", 24,
+             350.0f, 370.0f, sf::Color(219, 233, 240));
+    drawText(window, font, "P  -  pause or continue", 24,
+             350.0f, 435.0f, sf::Color::White);
+    drawText(window, font, "R  -  restart this shift", 24,
+             350.0f, 480.0f, sf::Color::White);
+    drawText(window, font, "ESC  -  pause; press ESC again for the menu", 22,
+             350.0f, 525.0f, sf::Color::White);
+    drawText(window, font, "M  -  open the music player", 22,
+             350.0f, 560.0f, sf::Color::White);
+    drawText(window, font, "Press ESC to return", 20,
+             568.0f, 590.0f, sf::Color(255, 220, 133));
+    window.display();
 }
 
-void drawInstructions(sf::RenderWindow& window, sf::Font& font, bool fontOk)
+void drawGame(sf::RenderWindow& window, sf::Font& font,
+              sf::Sprite (&vehicleSprites)[CHARACTER_COUNT],
+              sf::Texture& burgerShopTexture,
+              sf::Texture& pizzaShopTexture,
+              int selectedCharacter, GameState currentState)
 {
-    sf::RectangleShape shade(sf::Vector2f(WINDOW_W, WINDOW_H));
-    shade.setFillColor(sf::Color(3, 10, 18, 205));
-    window.draw(shade);
+    window.clear(sf::Color(13, 20, 29));
+    drawCityMap(window, burgerShopTexture, pizzaShopTexture);
 
-    sf::RectangleShape panel(sf::Vector2f(820.0f, 510.0f));
-    panel.setPosition(278.0f, 125.0f);
-    panel.setFillColor(sf::Color(12, 31, 50, 248));
+    if (!allOrdersCompleted())
+    {
+        const int activeOrder = currentOrderIndex;
+        const int targetRow = orderPackagePickedUp[activeOrder]
+            ? orderDropRows[activeOrder] : orderPickupRows[activeOrder];
+        const int targetCol = orderPackagePickedUp[activeOrder]
+            ? orderDropCols[activeOrder] : orderPickupCols[activeOrder];
+        const sf::Vector2f target = tileToPixelCenter(targetRow, targetCol);
+
+        // Urdu: ہلکا شفاف نشان رکھیں تاکہ نیچے والی دکان کی تصویر بھی نظر آئے۔
+        sf::CircleShape marker(21.0f);
+        marker.setOrigin(21.0f, 21.0f);
+        marker.setPosition(target);
+        marker.setFillColor(orderPackagePickedUp[activeOrder]
+            ? sf::Color(255, 211, 75, 45)
+            : sf::Color(57, 220, 126, 45));
+        marker.setOutlineThickness(4.0f);
+        marker.setOutlineColor(orderPackagePickedUp[activeOrder]
+            ? sf::Color(255, 211, 75, 235)
+            : sf::Color(57, 220, 126, 235));
+        window.draw(marker);
+    }
+
+    drawPlayer(window, vehicleSprites[selectedCharacter]);
+
+    sf::RectangleShape sidePanel(sf::Vector2f(
+        WINDOW_W - MAP_PIXEL_W,
+        WINDOW_H
+    ));
+    sidePanel.setPosition(MAP_PIXEL_W, 0.0f);
+    sidePanel.setFillColor(sf::Color(12, 27, 43));
+    sidePanel.setOutlineThickness(-2.0f);
+    sidePanel.setOutlineColor(sf::Color(68, 111, 137));
+    window.draw(sidePanel);
+
+    const float panelX = MAP_PIXEL_W + 28;
+    drawText(window, font, "DELIVERY SHIFT", 26, panelX, 30.0f,
+             sf::Color(255, 220, 133));
+    drawText(window, font, "RIDER", 15, panelX, 92.0f,
+             sf::Color(117, 177, 201));
+    drawText(window, font,
+             RIDER_NAMES[currentCharacter] + " / " + VEHICLE_NAMES[currentCharacter],
+             18, panelX, 116.0f, sf::Color::White);
+
+    sf::RectangleShape separator(sf::Vector2f(340.0f, 2.0f));
+    separator.setPosition(panelX, 158.0f);
+    separator.setFillColor(sf::Color(65, 103, 128));
+    window.draw(separator);
+
+    drawText(window, font, "CASH", 15, panelX, 183.0f,
+             sf::Color(117, 177, 201));
+    drawText(window, font, "$" + std::to_string(orderScore),
+             28, panelX, 208.0f, sf::Color(255, 220, 133));
+    drawText(window, font,
+             "Delivered: " + std::to_string(completedCount),
+             18, panelX, 265.0f, sf::Color::White);
+    drawText(window, font,
+             "Failed: " + std::to_string(failedCount) + " / 3",
+             18, panelX, 298.0f, sf::Color(239, 151, 126));
+    drawText(window, font,
+             "Streak: " + std::to_string(streakCount),
+             18, panelX, 331.0f, sf::Color(180, 224, 167));
+
+    if (!allOrdersCompleted())
+    {
+        const int activeOrder = currentOrderIndex;
+        drawText(window, font, "CURRENT ORDER", 15, panelX, 390.0f,
+                 sf::Color(117, 177, 201));
+        drawText(window, font, orderShopNames[activeOrder], 19, panelX, 416.0f,
+                 sf::Color::White);
+        drawText(window, font,
+                 orderPackagePickedUp[activeOrder] ? "Deliver to:" : "Pick up at:",
+                 17, panelX, 451.0f, sf::Color(207, 220, 228));
+        drawText(window, font,
+                 orderPackagePickedUp[activeOrder]
+                     ? orderCustomerNames[activeOrder] : orderShopNames[activeOrder],
+                 18, panelX, 478.0f, sf::Color(255, 220, 133));
+        const int secondsRemaining = orderTimesRemaining[activeOrder];
+        drawText(window, font,
+                 "Time: " + std::to_string(secondsRemaining) + " sec",
+                 22, panelX, 523.0f, sf::Color(255, 255, 255));
+    }
+
+    if (hittingObstacle)
+    {
+        drawText(window, font, "OBSTACLE: SPEED REDUCED", 16,
+                 panelX, 580.0f, sf::Color(255, 121, 93));
+    }
+
+    drawText(window, font, orderStatusBanner, 15,
+             panelX, 632.0f, sf::Color(213, 230, 235));
+    drawText(window, font, "P: PAUSE   M: MUSIC", 15,
+             panelX, 694.0f, sf::Color(117, 177, 201));
+
+    if (currentState == STATE_PAUSED)
+    {
+        sf::RectangleShape overlay(sf::Vector2f(
+            WINDOW_W,
+            WINDOW_H
+        ));
+        overlay.setFillColor(sf::Color(0, 0, 0, 175));
+        window.draw(overlay);
+        drawText(window, font, "SHIFT PAUSED", 52, 495.0f, 310.0f,
+                 sf::Color(255, 220, 133));
+        drawText(window, font, "P: RESUME     R: RESTART", 22,
+                 500.0f, 375.0f, sf::Color::White);
+        drawText(window, font, "M: MUSIC PLAYER     ESC: MAIN MENU", 20,
+                 470.0f, 425.0f, sf::Color::White);
+    }
+
+    window.display();
+}
+
+void drawEndScreen(sf::RenderWindow& window, sf::Font& font,
+                   sf::Sprite& menuBackground, bool victory)
+{
+    window.clear(sf::Color(10, 25, 42));
+    drawDimmedBackground(window, menuBackground);
+
+    sf::RectangleShape panel(sf::Vector2f(820.0f, 420.0f));
+    panel.setPosition(278.0f, 170.0f);
+    panel.setFillColor(sf::Color(11, 31, 52, 242));
     panel.setOutlineThickness(3.0f);
-    panel.setOutlineColor(sf::Color(82, 169, 188));
+    panel.setOutlineColor(victory
+        ? sf::Color(99, 212, 145)
+        : sf::Color(225, 113, 91));
     window.draw(panel);
 
-    drawText(window, font, fontOk, "HOW TO PLAY", 34,
-             545.0f, 155.0f, sf::Color(255, 220, 133));
-    drawText(window, font, fontOk, "WASD or arrow keys: drive", 20,
-             360.0f, 245.0f, sf::Color::White);
-    drawText(window, font, fontOk,
-             "E: pick up a package or deliver it", 20,
-             360.0f, 295.0f, sf::Color::White);
-    drawText(window, font, fontOk,
-             "Follow the red arrow to the marked place.", 20,
-             360.0f, 345.0f, sf::Color::White);
-    drawText(window, font, fontOk,
-             "Avoid obstacles; they slow your vehicle.", 20,
-             360.0f, 395.0f, sf::Color::White);
-    drawText(window, font, fontOk,
-             "P or ESC: pause   M: music   R: restart", 18,
-             360.0f, 445.0f, sf::Color(166, 207, 221));
-
-    sf::RectangleShape backButton(sf::Vector2f(260.0f, 56.0f));
-    backButton.setPosition(558.0f, 535.0f);
-    backButton.setFillColor(sf::Color(37, 79, 105));
-    backButton.setOutlineThickness(2.0f);
-    backButton.setOutlineColor(sf::Color(82, 169, 188));
-    window.draw(backButton);
-    drawText(window, font, fontOk, "BACK TO MENU", 18,
-             608.0f, 551.0f, sf::Color::White);
-}
-
-void drawPauseScreen(sf::RenderWindow& window, sf::Font& font, bool fontOk)
-{
-    sf::RectangleShape shade(sf::Vector2f(WINDOW_W, WINDOW_H));
-    shade.setFillColor(sf::Color(3, 10, 18, 210));
-    window.draw(shade);
-
-    sf::RectangleShape panel(sf::Vector2f(520.0f, 430.0f));
-    panel.setPosition(428.0f, 165.0f);
-    panel.setFillColor(sf::Color(12, 31, 50, 250));
-    panel.setOutlineThickness(3.0f);
-    panel.setOutlineColor(sf::Color(82, 169, 188));
-    window.draw(panel);
-
-    drawText(window, font, fontOk, "SHIFT PAUSED", 34,
-             555.0f, 205.0f, sf::Color(255, 220, 133));
-
-    const float buttonY[3] = {290.0f, 375.0f, 460.0f};
-    const std::string labels[3] = {"RESUME", "MAIN MENU", "QUIT GAME"};
-    for (int i = 0; i < 3; i++)
-    {
-        sf::RectangleShape button(sf::Vector2f(300.0f, 58.0f));
-        button.setPosition(538.0f, buttonY[i]);
-        button.setFillColor(sf::Color(37, 79, 105));
-        button.setOutlineThickness(2.0f);
-        button.setOutlineColor(sf::Color(82, 169, 188));
-        window.draw(button);
-        drawText(window, font, fontOk, labels[i], 19,
-                 625.0f, buttonY[i] + 16.0f, sf::Color::White);
-    }
-
-    drawText(window, font, fontOk, "P or ESC: resume", 14,
-             570.0f, 535.0f, sf::Color(166, 207, 221));
-}
-
-void drawLeaderboard(sf::RenderWindow& window, sf::Font& font, bool fontOk)
-{
-    sf::RectangleShape shade(sf::Vector2f(WINDOW_W, WINDOW_H));
-    shade.setFillColor(sf::Color(3, 10, 18, 210));
-    window.draw(shade);
-
-    sf::RectangleShape panel(sf::Vector2f(650.0f, 570.0f));
-    panel.setPosition(363.0f, 95.0f);
-    panel.setFillColor(sf::Color(12, 31, 50, 250));
-    panel.setOutlineThickness(3.0f);
-    panel.setOutlineColor(sf::Color(82, 169, 188));
-    window.draw(panel);
-
-    drawText(window, font, fontOk, "TOP DELIVERY SCORES", 32,
-             490.0f, 125.0f, sf::Color(255, 220, 133));
-
-    for (int i = 0; i < HIGH_SCORE_LIMIT; i++)
-    {
-        std::string row = std::to_string(i + 1) + ".  ";
-        if (i < highScoreCount)
-        {
-            row += highScoreNames[i] + "     $" +
-                   std::to_string(highScoreValues[i]);
-        }
-        else
-        {
-            row += "---";
-        }
-
-        drawText(window, font, fontOk, row, 23,
-                 470.0f, 220.0f + i * 58.0f, sf::Color::White);
-    }
-
-    sf::RectangleShape backButton(sf::Vector2f(280.0f, 56.0f));
-    backButton.setPosition(548.0f, 535.0f);
-    backButton.setFillColor(sf::Color(37, 79, 105));
-    backButton.setOutlineThickness(2.0f);
-    backButton.setOutlineColor(sf::Color(82, 169, 188));
-    window.draw(backButton);
-    drawText(window, font, fontOk, "BACK TO MENU", 18,
-             608.0f, 551.0f, sf::Color::White);
-}
-
-// Check karta hai rider current pickup ya delivery point ke qareeb hai.
-bool isNearCurrentOrderTarget()
-{
-    if (!hasCurrentOrder())
-    {
-        return false;
-    }
-
-    const int orderIndex = currentOrderIndex;
-
-    int targetRow;
-    int targetCol;
-
-    if (orderPackagePickedUp[orderIndex])
-    {
-        targetRow = orderDropRows[orderIndex];
-        targetCol = orderDropCols[orderIndex];
-    }
-    else
-    {
-        targetRow = orderPickupRows[orderIndex];
-        targetCol = orderPickupCols[orderIndex];
-    }
-
-    const sf::Vector2f target =
-        tileToPixelCenter(targetRow, targetCol);
-
-    const float differenceX = playerPosition.x - target.x;
-    const float differenceY = playerPosition.y - target.y;
-
-    // Distance ka square check hota hai; is se square root ki zaroorat nahi.
-    return differenceX * differenceX + differenceY * differenceY
-        <= 28.0f * 28.0f;
+    drawText(window, font, victory ? "SHIFT COMPLETE" : "SHIFT OVER",
+             48, 490.0f, 220.0f,
+             victory ? sf::Color(115, 234, 156) : sf::Color(255, 139, 115));
+    drawText(window, font,
+             "Final cash: $" + std::to_string(orderScore),
+             29, 490.0f, 315.0f, sf::Color::White);
+    drawText(window, font,
+             "Delivered: " + std::to_string(completedCount) +
+             "     Failed: " + std::to_string(failedCount),
+             23, 490.0f, 370.0f, sf::Color(218, 230, 236));
+    drawText(window, font, "R - PLAY AGAIN     ENTER - MENU",
+             22, 490.0f, 455.0f, sf::Color(255, 220, 133));
+    window.display();
 }
 
 int main()
@@ -555,178 +619,95 @@ int main()
         sf::VideoMode(WINDOW_W, WINDOW_H),
         "Last Delivery | Group 11"
     );
-
     window.setFramerateLimit(60);
-
-    // Font load karne ki koshish.
-    sf::Font font;
-    const bool fontOk =
-        font.loadFromFile("assets/arial.ttf") ||
-        font.loadFromFile("C:/Windows/Fonts/arial.ttf");
-
-    if (!fontOk)
+    sf::Music backgroundMusic;
+    sf::SoundBuffer gameSoundBuffers[GAME_SOUND_COUNT];
+    sf::Sound gameSounds[GAME_SOUND_COUNT];
+    bool gameSoundLoaded[GAME_SOUND_COUNT] = {false, false, false, false};
+    for (int soundIndex = 0; soundIndex < GAME_SOUND_COUNT; soundIndex++)
     {
-        std::cout << "Font not found. Game text will not appear.\n";
+        gameSoundLoaded[soundIndex] = loadGameSound(
+            gameSoundBuffers[soundIndex], gameSounds[soundIndex],
+            GAME_SOUND_PATHS[soundIndex]
+        );
+    }
+    // اردو: کھیل کھلتے ہی اپنا بنایا ہوا ہلکا سا میوزک شروع کریں۔
+    playSelectedMusic(backgroundMusic);
+
+    sf::Font font;
+    if (!font.loadFromFile("assets/arial.ttf") &&
+        !font.loadFromFile("C:/Windows/Fonts/arial.ttf"))
+    {
+        std::cout << "Font not found. Place a font at assets/arial.ttf."
+                  << std::endl;
     }
 
-    loadHighScores();
+    sf::Texture menuTexture;
+    sf::Sprite menuBackground;
+    if (menuTexture.loadFromFile("assets/menu-reference.jpeg"))
+    {
+        menuTexture.setSmooth(false);
+        menuBackground.setTexture(menuTexture);
+    }
+    else
+    {
+        std::cout << "Menu image not found: assets/menu-reference.jpeg" << std::endl;
+    }
 
-    // Map ki shop images load karne ki koshish.
-    // Agar images na milen, Map.h ka fallback shop drawing use hoga.
-    loadShopArt();
-    loadDefaultCity();
+    sf::Texture characterTexture;
+    if (!characterTexture.loadFromFile("assets/character-select-reference.jpg"))
+    {
+        std::cout << "Character reference image could not be loaded." << std::endl;
+    }
+    characterTexture.setSmooth(false);
 
-    // Har character ki sawari ki image load hoti hai.
     sf::Texture vehicleTextures[CHARACTER_COUNT];
     sf::Sprite vehicleSprites[CHARACTER_COUNT];
-    bool vehicleLoaded[CHARACTER_COUNT] = {false, false, false};
-    const std::string vehiclePaths[CHARACTER_COUNT] = {
-        "assets/cycle.jpg",
-        "assets/motorcycle.jpg",
-        "assets/car.jpg"
-    };
+    loadVehicleImage(vehicleTextures[0], vehicleSprites[0], "assets/cycle.jpg");
+    loadVehicleImage(vehicleTextures[1], vehicleSprites[1], "assets/motorcycle.jpg");
+    loadVehicleImage(vehicleTextures[2], vehicleSprites[2], "assets/car.jpg");
 
-    for (int i = 0; i < CHARACTER_COUNT; i++)
+    sf::Texture burgerShopTexture;
+    if (!burgerShopTexture.loadFromFile("assets/burger-shop.png"))
     {
-        sf::Image vehicleImage;
-        if (vehicleImage.loadFromFile(vehiclePaths[i]))
-        {
-            // Cycle aur motorcycle ke bahar ke plain background ko transparent
-            // banata hai. Car ka white body white background se milta hai,
-            // is liye us image ko original rakha gaya hai.
-            if (i < 2)
-            {
-                const sf::Color background = vehicleImage.getPixel(0, 0);
-                const sf::Vector2u imageSize = vehicleImage.getSize();
-
-                for (unsigned int y = 0; y < imageSize.y; y++)
-                {
-                    for (unsigned int x = 0; x < imageSize.x; x++)
-                    {
-                        const sf::Color pixel = vehicleImage.getPixel(x, y);
-                        const bool matchesBackground =
-                            std::abs(pixel.r - background.r) <= 32 &&
-                            std::abs(pixel.g - background.g) <= 32 &&
-                            std::abs(pixel.b - background.b) <= 32;
-
-                        if (matchesBackground)
-                        {
-                            vehicleImage.setPixel(
-                                x, y,
-                                sf::Color(pixel.r, pixel.g, pixel.b, 0)
-                            );
-                        }
-                    }
-                }
-            }
-
-            const sf::Vector2u imageSize = vehicleImage.getSize();
-            const int imageWidth = imageSize.x;
-            const int imageHeight = imageSize.y;
-            int minX = imageWidth;
-            int minY = imageHeight;
-            int maxX = -1;
-            int maxY = -1;
-            for (unsigned int y = 0; y < imageSize.y; y++)
-            {
-                for (unsigned int x = 0; x < imageSize.x; x++)
-                {
-                    const sf::Color pixel = vehicleImage.getPixel(x, y);
-                    bool visiblePixel = pixel.a > 0;
-                    if (i == 2)
-                    {
-                        visiblePixel = pixel.r < 245 || pixel.g < 245 ||
-                                       pixel.b < 245;
-                    }
-                    if (visiblePixel)
-                    {
-                        const int pixelX = x;
-                        const int pixelY = y;
-                        if (pixelX < minX) minX = pixelX;
-                        if (pixelY < minY) minY = pixelY;
-                        if (pixelX > maxX) maxX = pixelX;
-                        if (pixelY > maxY) maxY = pixelY;
-                    }
-                }
-            }
-
-            vehicleLoaded[i] = vehicleTextures[i].loadFromImage(vehicleImage);
-            if (vehicleLoaded[i])
-            {
-                vehicleTextures[i].setSmooth(false);
-                vehicleSprites[i].setTexture(vehicleTextures[i]);
-                if (maxX > minX && maxY > minY)
-                {
-                    const int padding = 8;
-                    const int left = minX > padding ? minX - padding : 0;
-                    const int top = minY > padding ? minY - padding : 0;
-                    const int right = maxX + padding < imageWidth
-                        ? maxX + padding : imageWidth - 1;
-                    const int bottom = maxY + padding < imageHeight
-                        ? maxY + padding : imageHeight - 1;
-                    vehicleSprites[i].setTextureRect(sf::IntRect(
-                        left, top, right - left + 1, bottom - top + 1
-                    ));
-                }
-            }
-        }
-
-        if (!vehicleLoaded[i])
-        {
-            std::cout << "Vehicle image not found: "
-                      << vehiclePaths[i] << std::endl;
-        }
+        std::cout << "Burger shop image not found: assets/burger-shop.png"
+                  << std::endl;
     }
+    burgerShopTexture.setSmooth(true);
 
-    sf::Image arrowImage;
-    sf::Texture targetArrowTexture;
-    bool targetArrowLoaded = false;
-    if (arrowImage.loadFromFile("assets/orders/direction-arrow.png"))
+    sf::Texture pizzaShopTexture;
+    if (!pizzaShopTexture.loadFromFile("assets/pizza-shop.png"))
     {
-        const sf::Vector2u imageSize = arrowImage.getSize();
-        for (unsigned int y = 0; y < imageSize.y; y++)
-        {
-            for (unsigned int x = 0; x < imageSize.x; x++)
-            {
-                const sf::Color pixel = arrowImage.getPixel(x, y);
-                if (pixel.r > 245 && pixel.g > 245 && pixel.b > 245)
-                {
-                    arrowImage.setPixel(
-                        x, y, sf::Color(pixel.r, pixel.g, pixel.b, 0)
-                    );
-                }
-            }
-        }
-        targetArrowLoaded = targetArrowTexture.loadFromImage(arrowImage);
+        std::cout << "Pizza shop image not found: assets/pizza-shop.png"
+                  << std::endl;
     }
+    pizzaShopTexture.setSmooth(true);
 
-    loadGameSounds();
-    sf::Music backgroundMusic;
-    sf::Texture menuTexture;
-    const bool menuArtLoaded =
-        menuTexture.loadFromFile("assets/menu-reference.jpeg");
-
-    // Naya game shuru hote hi orders ko ek martaba initialize karo.
+    loadDefaultCity();
     resetOrders();
-
-    // Rider ko starting road tile par rakho.
+    loadHighScores();
     setupPlayer(0, tileToPixelCenter(4, 5));
-    bool scoreRecorded = false;
 
+    int selectedCharacter = 0;
+    GameState currentState = STATE_MENU;
+    bool highScoreSaved = false;
+    bool wasOnObstacle = false;
     sf::Clock frameClock;
+    sf::Clock collisionSoundClock;
+
+    const sf::FloatRect startButton(140.0f, 295.0f, 400.0f, 125.0f);
+    const sf::FloatRect instructionsButton(140.0f, 435.0f, 400.0f, 125.0f);
+    const sf::FloatRect exitButton(140.0f, 570.0f, 400.0f, 120.0f);
 
     while (window.isOpen())
     {
         float deltaTime = frameClock.restart().asSeconds();
-
-        // Agar window kuch dair ruk jaye, to rider ek frame mein bohat door na jaye.
         if (deltaTime > 0.1f)
         {
             deltaTime = 0.1f;
         }
 
         sf::Event event;
-
         while (window.pollEvent(event))
         {
             if (event.type == sf::Event::Closed)
@@ -736,616 +717,391 @@ int main()
 
             if (event.type == sf::Event::KeyPressed)
             {
-                if (musicScreenOpen)
+                if (event.key.code == sf::Keyboard::Escape)
                 {
-                    if (event.key.code == sf::Keyboard::Escape ||
-                        event.key.code == sf::Keyboard::M)
+                    if (currentState == STATE_MENU)
                     {
-                        musicScreenOpen = false;
+                        window.close();
                     }
-                    else if (event.key.code == sf::Keyboard::Up)
+                    else if (currentState == STATE_PLAYING)
                     {
-                        changeMusicTrack(-1, backgroundMusic);
+                        currentState = STATE_PAUSED;
                     }
+                    else if (currentState == STATE_MUSIC)
+                    {
+                        currentState = stateBeforeMusic;
+                    }
+                    else
+                    {
+                        currentState = STATE_MENU;
+                    }
+                }
+
+                if (currentState == STATE_MENU)
+                {
+                    if (event.key.code == sf::Keyboard::Enter)
+                    {
+                        currentState = STATE_CHAR_SELECT;
+                    }
+                    else if (event.key.code == sf::Keyboard::I)
+                    {
+                        currentState = STATE_INSTRUCTIONS;
+                    }
+                    else if (event.key.code == sf::Keyboard::H)
+                    {
+                        loadHighScores();
+                        currentState = STATE_LEADERBOARD;
+                    }
+                    else if (event.key.code == sf::Keyboard::M)
+                    {
+                        stateBeforeMusic = STATE_MENU;
+                        currentState = STATE_MUSIC;
+                    }
+                }
+                else if (currentState == STATE_MUSIC)
+                {
+                    if (event.key.code == sf::Keyboard::Up)
+                        moveMusicSelection(-1, backgroundMusic);
                     else if (event.key.code == sf::Keyboard::Down)
-                    {
-                        changeMusicTrack(1, backgroundMusic);
-                    }
+                        moveMusicSelection(1, backgroundMusic);
                     else if (event.key.code == sf::Keyboard::Left)
                     {
-                        changeMusicTrack(-1, backgroundMusic);
+                        moveMusicSelection(-1, backgroundMusic);
                         playSelectedMusic(backgroundMusic);
                     }
                     else if (event.key.code == sf::Keyboard::Right)
                     {
-                        changeMusicTrack(1, backgroundMusic);
+                        moveMusicSelection(1, backgroundMusic);
                         playSelectedMusic(backgroundMusic);
                     }
                     else if (event.key.code == sf::Keyboard::Enter)
-                    {
                         playSelectedMusic(backgroundMusic);
-                    }
                     else if (event.key.code == sf::Keyboard::Space)
                     {
                         if (backgroundMusic.getStatus() == sf::Music::Playing)
                         {
                             backgroundMusic.pause();
-                            musicStatus = "Music paused.";
+                            musicMessage = "Music paused.";
                         }
                         else if (backgroundMusic.getStatus() == sf::Music::Paused)
                         {
                             backgroundMusic.play();
-                            musicStatus = "Playing: " +
-                                musicTitles[selectedMusicTrack];
+                            musicMessage = "Now playing: " +
+                                MUSIC_TRACK_NAMES[selectedMusicTrack];
                         }
                         else
-                        {
                             playSelectedMusic(backgroundMusic);
-                        }
                     }
-                    continue;
-                }
-
-                if (event.key.code == sf::Keyboard::M)
-                {
-                    musicScreenOpen = true;
-                    continue;
-                }
-
-                if (currentState == STATE_MENU)
-                {
-                    if (event.key.code == sf::Keyboard::Enter ||
-                        event.key.code == sf::Keyboard::Num1)
-                        currentState = STATE_CHAR_SELECT;
-                    else if (event.key.code == sf::Keyboard::I)
-                        currentState = STATE_INSTRUCTIONS;
-                    else if (event.key.code == sf::Keyboard::L)
-                        currentState = STATE_LEADERBOARD;
-                    else if (event.key.code == sf::Keyboard::Escape)
-                        window.close();
-
-                    continue;
-                }
-
-                if (currentState == STATE_INSTRUCTIONS)
-                {
-                    if (event.key.code == sf::Keyboard::Escape ||
-                        event.key.code == sf::Keyboard::Enter)
-                        currentState = STATE_MENU;
-
-                    continue;
-                }
-
-                if (currentState == STATE_LEADERBOARD)
-                {
-                    if (event.key.code == sf::Keyboard::Escape ||
-                        event.key.code == sf::Keyboard::Enter)
-                        currentState = STATE_MENU;
-
-                    continue;
-                }
-
-                if (currentState == STATE_CHAR_SELECT)
-                {
-                    if (event.key.code == sf::Keyboard::Escape)
-                        currentState = STATE_MENU;
-                    else if (event.key.code == sf::Keyboard::Num1)
-                        selectedCharacter = 0;
-                    else if (event.key.code == sf::Keyboard::Num2)
-                        selectedCharacter = 1;
-                    else if (event.key.code == sf::Keyboard::Num3)
-                        selectedCharacter = 2;
-                    else if (event.key.code == sf::Keyboard::Enter)
-                    {
-                        resetOrders();
-                        scoreRecorded = false;
-                        setupPlayer(selectedCharacter,
-                                    tileToPixelCenter(4, 5));
-                        currentState = STATE_PLAYING;
-                    }
-
-                    continue;
-                }
-
-                if (currentState == STATE_PAUSED)
-                {
-                    if (event.key.code == sf::Keyboard::P ||
-                        event.key.code == sf::Keyboard::Escape ||
-                        event.key.code == sf::Keyboard::R)
-                        currentState = STATE_PLAYING;
-                    else if (event.key.code == sf::Keyboard::BackSpace)
-                        currentState = STATE_MENU;
-                    else if (event.key.code == sf::Keyboard::Q)
-                        window.close();
-
-                    continue;
-                }
-
-                if (event.key.code == sf::Keyboard::Escape ||
-                    event.key.code == sf::Keyboard::P)
-                {
-                    currentState = STATE_PAUSED;
-                    continue;
-                }
-
-                // 1, 2, 3 se rider badalta hai.
-                // Rider badalne se orders reset nahi honge.
-                if (event.key.code == sf::Keyboard::Num1)
-                {
-                    setupPlayer(0, tileToPixelCenter(4, 5));
-                }
-                else if (event.key.code == sf::Keyboard::Num2)
-                {
-                    setupPlayer(1, tileToPixelCenter(4, 5));
-                }
-                else if (event.key.code == sf::Keyboard::Num3)
-                {
-                    setupPlayer(2, tileToPixelCenter(4, 5));
-                }
-
-                // R se rider aur poori shift dobara shuru hoti hai.
-                else if (event.key.code == sf::Keyboard::R)
-                {
-                    setupPlayer(
-                        currentCharacter,
-                        tileToPixelCenter(4, 5)
-                    );
-
-                    resetOrders();
-                }
-
-                // E dabane par pickup ya delivery hoti hai,
-                // magar sirf jab rider sahi target ke qareeb ho.
-                else if (event.key.code == sf::Keyboard::E &&
-                         failedCount < 3 &&
-                         !allOrdersCompleted() &&
-                         isNearCurrentOrderTarget())
-                {
-                    if (!orderPackagePickedUp[currentOrderIndex])
-                    {
-                        orderPackagePickedUp[currentOrderIndex] = true;
-                        playGameSound(0);
-
-                        orderStatusBanner =
-                            "Package picked up! Deliver it to " +
-                            orderCustomerNames[currentOrderIndex] + ".";
-                    }
-                    else
-                    {
-                        completeCurrentOrder(
-                            RIDER_SCORE_MULTIPLIER[currentCharacter]
-                        );
-                        playGameSound(1);
-                    }
-                }
-            }
-
-            if (!musicScreenOpen &&
-                event.type == sf::Event::MouseButtonPressed &&
-                event.mouseButton.button == sf::Mouse::Left)
-            {
-                const float clickX = event.mouseButton.x;
-                const float clickY = event.mouseButton.y;
-
-                if (currentState == STATE_MENU)
-                {
-                    if (sf::FloatRect(140.0f, 303.0f, 395.0f, 112.0f)
-                            .contains(clickX, clickY))
-                        currentState = STATE_CHAR_SELECT;
-                    else if (sf::FloatRect(140.0f, 439.0f, 395.0f, 112.0f)
-                                 .contains(clickX, clickY))
-                        currentState = STATE_INSTRUCTIONS;
-                    else if (sf::FloatRect(140.0f, 574.0f, 395.0f, 112.0f)
-                                 .contains(clickX, clickY))
-                        window.close();
                 }
                 else if (currentState == STATE_CHAR_SELECT)
                 {
-                    if (sf::FloatRect(278.0f, 200.0f, 250.0f, 315.0f)
-                            .contains(clickX, clickY))
-                        selectedCharacter = 0;
-                    else if (sf::FloatRect(563.0f, 200.0f, 250.0f, 315.0f)
-                                 .contains(clickX, clickY))
-                        selectedCharacter = 1;
-                    else if (sf::FloatRect(848.0f, 200.0f, 250.0f, 315.0f)
-                                 .contains(clickX, clickY))
-                        selectedCharacter = 2;
-                    else if (sf::FloatRect(548.0f, 570.0f, 280.0f, 56.0f)
-                                 .contains(clickX, clickY))
+                    if (event.key.code == sf::Keyboard::Num1) selectedCharacter = 0;
+                    if (event.key.code == sf::Keyboard::Num2) selectedCharacter = 1;
+                    if (event.key.code == sf::Keyboard::Num3) selectedCharacter = 2;
+
+                    if (event.key.code == sf::Keyboard::Enter)
                     {
                         resetOrders();
-                        scoreRecorded = false;
-                        setupPlayer(selectedCharacter,
-                                    tileToPixelCenter(4, 5));
+                        setupPlayer(selectedCharacter, tileToPixelCenter(4, 5));
+                        wasOnObstacle = false;
+                        highScoreSaved = false;
                         currentState = STATE_PLAYING;
                     }
                 }
-                else if (currentState == STATE_INSTRUCTIONS)
+                else if (currentState == STATE_INSTRUCTIONS ||
+                         currentState == STATE_LEADERBOARD)
                 {
-                    if (sf::FloatRect(558.0f, 535.0f, 260.0f, 56.0f)
-                            .contains(clickX, clickY))
+                    if (event.key.code == sf::Keyboard::Enter)
+                    {
                         currentState = STATE_MENU;
+                    }
                 }
-                else if (currentState == STATE_LEADERBOARD)
+                else if (currentState == STATE_PLAYING)
                 {
-                    if (sf::FloatRect(548.0f, 535.0f, 280.0f, 56.0f)
-                            .contains(clickX, clickY))
-                        currentState = STATE_MENU;
+                    if (event.key.code == sf::Keyboard::M)
+                    {
+                        stateBeforeMusic = STATE_PLAYING;
+                        currentState = STATE_MUSIC;
+                    }
+                    if (event.key.code == sf::Keyboard::P)
+                    {
+                        currentState = STATE_PAUSED;
+                    }
+                    if (event.key.code == sf::Keyboard::R)
+                    {
+                        resetOrders();
+                        setupPlayer(selectedCharacter, tileToPixelCenter(4, 5));
+                        wasOnObstacle = false;
+                        highScoreSaved = false;
+                    }
                 }
                 else if (currentState == STATE_PAUSED)
                 {
-                    if (sf::FloatRect(538.0f, 290.0f, 300.0f, 58.0f)
-                            .contains(clickX, clickY))
+                    if (event.key.code == sf::Keyboard::M)
+                    {
+                        stateBeforeMusic = STATE_PAUSED;
+                        currentState = STATE_MUSIC;
+                    }
+                    if (event.key.code == sf::Keyboard::P)
+                    {
                         currentState = STATE_PLAYING;
-                    else if (sf::FloatRect(538.0f, 375.0f, 300.0f, 58.0f)
-                                 .contains(clickX, clickY))
+                    }
+                    if (event.key.code == sf::Keyboard::R)
+                    {
+                        resetOrders();
+                        setupPlayer(selectedCharacter, tileToPixelCenter(4, 5));
+                        wasOnObstacle = false;
+                        highScoreSaved = false;
+                        currentState = STATE_PLAYING;
+                    }
+                }
+                else if (currentState == STATE_GAME_OVER ||
+                         currentState == STATE_VICTORY)
+                {
+                    if (event.key.code == sf::Keyboard::R)
+                    {
+                        resetOrders();
+                        setupPlayer(selectedCharacter, tileToPixelCenter(4, 5));
+                        wasOnObstacle = false;
+                        highScoreSaved = false;
+                        currentState = STATE_PLAYING;
+                    }
+                    else if (event.key.code == sf::Keyboard::Enter)
+                    {
                         currentState = STATE_MENU;
-                    else if (sf::FloatRect(538.0f, 460.0f, 300.0f, 58.0f)
-                                 .contains(clickX, clickY))
-                        window.close();
+                    }
                 }
             }
 
-            if (musicScreenOpen &&
-                event.type == sf::Event::MouseButtonPressed &&
+            if (event.type == sf::Event::MouseButtonPressed &&
                 event.mouseButton.button == sf::Mouse::Left)
             {
-                const float clickX = event.mouseButton.x;
-                const float clickY = event.mouseButton.y;
+                const float mouseX = event.mouseButton.x;
+                const float mouseY = event.mouseButton.y;
 
-                for (int i = 0; i < MUSIC_TRACK_COUNT; i++)
+                if (currentState == STATE_MUSIC)
                 {
-                    const sf::FloatRect trackRow(
-                        393.0f, 230.0f + i * 66.0f, 590.0f, 52.0f
-                    );
-                    if (trackRow.contains(clickX, clickY))
+                    bool clickedTrack = false;
+                    for (int i = 0; i < MUSIC_TRACK_COUNT; i++)
                     {
-                        selectedMusicTrack = i;
+                        const sf::FloatRect trackRow(
+                            388.0f,
+                            MUSIC_TRACK_ROW_Y + i * MUSIC_TRACK_ROW_GAP,
+                            600.0f, MUSIC_TRACK_ROW_HEIGHT);
+                        if (trackRow.contains(mouseX, mouseY))
+                        {
+                            selectedMusicTrack = i;
+                            playSelectedMusic(backgroundMusic);
+                            clickedTrack = true;
+                        }
+                    }
+
+                    if (!clickedTrack &&
+                        sf::FloatRect(400.0f, MUSIC_BUTTON_Y, 175.0f, 45.0f)
+                            .contains(mouseX, mouseY))
+                    {
+                        moveMusicSelection(-1, backgroundMusic);
+                        playSelectedMusic(backgroundMusic);
+                    }
+                    else if (!clickedTrack &&
+                        sf::FloatRect(590.0f, MUSIC_BUTTON_Y, 205.0f, 45.0f)
+                            .contains(mouseX, mouseY))
+                    {
+                        if (backgroundMusic.getStatus() == sf::Music::Playing)
+                        {
+                            backgroundMusic.pause();
+                            musicMessage = "Music paused.";
+                        }
+                        else if (backgroundMusic.getStatus() == sf::Music::Paused)
+                        {
+                            backgroundMusic.play();
+                            musicMessage = "Now playing: " +
+                                MUSIC_TRACK_NAMES[selectedMusicTrack];
+                        }
+                        else
+                            playSelectedMusic(backgroundMusic);
+                    }
+                    else if (!clickedTrack &&
+                        sf::FloatRect(810.0f, MUSIC_BUTTON_Y, 175.0f, 45.0f)
+                            .contains(mouseX, mouseY))
+                    {
+                        moveMusicSelection(1, backgroundMusic);
                         playSelectedMusic(backgroundMusic);
                     }
                 }
-
-                if (sf::FloatRect(393.0f, 450.0f, 175.0f, 54.0f)
-                        .contains(clickX, clickY))
+                else if (currentState == STATE_MENU)
                 {
-                    changeMusicTrack(-1, backgroundMusic);
-                    playSelectedMusic(backgroundMusic);
-                }
-                else if (sf::FloatRect(601.0f, 450.0f, 175.0f, 54.0f)
-                             .contains(clickX, clickY))
-                {
-                    if (backgroundMusic.getStatus() == sf::Music::Playing)
+                    if (startButton.contains(mouseX, mouseY))
                     {
-                        backgroundMusic.pause();
-                        musicStatus = "Music paused.";
+                        currentState = STATE_CHAR_SELECT;
                     }
-                    else if (backgroundMusic.getStatus() == sf::Music::Paused)
+                    else if (instructionsButton.contains(mouseX, mouseY))
                     {
-                        backgroundMusic.play();
-                        musicStatus = "Playing: " +
-                            musicTitles[selectedMusicTrack];
+                        currentState = STATE_INSTRUCTIONS;
                     }
-                    else
+                    else if (exitButton.contains(mouseX, mouseY))
                     {
-                        playSelectedMusic(backgroundMusic);
+                        window.close();
                     }
                 }
-                else if (sf::FloatRect(809.0f, 450.0f, 175.0f, 54.0f)
-                             .contains(clickX, clickY))
+                else if (currentState == STATE_CHAR_SELECT &&
+                         mouseY >= CHARACTER_CARD_Y &&
+                         mouseY <= CHARACTER_CARD_Y + CHARACTER_CARD_H)
                 {
-                    changeMusicTrack(1, backgroundMusic);
-                    playSelectedMusic(backgroundMusic);
+                    for (int i = 0; i < CHARACTER_COUNT; i++)
+                    {
+                        if (mouseX >= CHARACTER_CARD_X[i] &&
+                            mouseX <= CHARACTER_CARD_X[i] + CHARACTER_CARD_W)
+                        {
+                            selectedCharacter = i;
+                        }
+                    }
                 }
             }
         }
 
-        // Shift khatam ho chuki ho to rider aur timer ruk jayenge.
-        const bool shiftOver =
-            failedCount >= 3 || allOrdersCompleted();
-
-        if (shiftOver && !scoreRecorded)
+        if (currentState == STATE_PLAYING)
         {
-            addHighScore(RIDER_NAMES[currentCharacter], orderScore);
-            scoreRecorded = true;
-        }
-
-        if (currentState == STATE_PLAYING &&
-            !shiftOver && !musicScreenOpen)
-        {
-            const bool obstacleWasHit = hittingObstacle;
-            const bool wallWasHit = wallImpact;
-            updatePlayerMovement(deltaTime);
-
-            if ((hittingObstacle && !obstacleWasHit) ||
-                (wallImpact && !wallWasHit))
+            const bool bumpedIntoWall = updatePlayerMovement(deltaTime);
+            const bool onObstacle = isPlayerOnObstacle();
+            if ((bumpedIntoWall &&
+                 collisionSoundClock.getElapsedTime().asMilliseconds() >= 350) ||
+                (onObstacle && !wasOnObstacle))
             {
-                playGameSound(2);
+                playGameSound(gameSounds, gameSoundLoaded, SOUND_COLLISION);
+                collisionSoundClock.restart();
             }
+            wasOnObstacle = onObstacle;
 
-            if (hasCurrentOrder())
+            if (!allOrdersCompleted())
             {
                 updateOrderTimer(deltaTime);
 
                 if (isOrderExpired())
                 {
-                    playGameSound(3);
                     failCurrentOrder();
+                    playGameSound(gameSounds, gameSoundLoaded, SOUND_FAILURE);
+                    if (failedCount >= 3)
+                    {
+                        currentState = STATE_GAME_OVER;
+                    }
+                    else if (allOrdersCompleted())
+                    {
+                        currentState = completedCount > 0
+                            ? STATE_VICTORY : STATE_GAME_OVER;
+                    }
                 }
+                else
+                {
+                    const int activeOrder = currentOrderIndex;
+                    const int targetRow = orderPackagePickedUp[activeOrder]
+                        ? orderDropRows[activeOrder] : orderPickupRows[activeOrder];
+                    const int targetCol = orderPackagePickedUp[activeOrder]
+                        ? orderDropCols[activeOrder] : orderPickupCols[activeOrder];
+                    const sf::Vector2f target = tileToPixelCenter(
+                        targetRow, targetCol
+                    );
+
+                    const sf::FloatRect targetZone(
+                        target.x - 28.0f,
+                        target.y - 28.0f,
+                        56.0f,
+                        56.0f
+                    );
+
+                    if (getPlayerBounds().intersects(targetZone))
+                    {
+                        if (!orderPackagePickedUp[activeOrder])
+                        {
+                            orderPackagePickedUp[activeOrder] = true;
+                            playGameSound(gameSounds, gameSoundLoaded, SOUND_PICKUP);
+                            orderStatusBanner =
+                                "Package picked up. Find the customer!";
+                        }
+                        else
+                        {
+                            playGameSound(gameSounds, gameSoundLoaded, SOUND_DELIVERY);
+                            completeCurrentOrder(
+                                RIDER_SCORE_MULTIPLIER[currentCharacter]
+                            );
+                            if (allOrdersCompleted())
+                            {
+                                currentState = STATE_VICTORY;
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                currentState = completedCount > 0
+                    ? STATE_VICTORY : STATE_GAME_OVER;
             }
         }
 
-        window.clear(sf::Color(13, 20, 29));
+        if ((currentState == STATE_GAME_OVER ||
+             currentState == STATE_VICTORY) && !highScoreSaved)
+        {
+            std::string scoreName = RIDER_NAMES[currentCharacter] + "-" +
+                                    VEHICLE_NAMES[currentCharacter];
+            for (std::size_t i = 0; i < scoreName.size(); i++)
+            {
+                if (scoreName[i] == ' ')
+                {
+                    scoreName[i] = '_';
+                }
+            }
+            addHighScore(scoreName, orderScore);
+            highScoreSaved = true;
+        }
 
         if (currentState == STATE_MENU)
         {
-            drawMenuScreen(window, font, fontOk, menuTexture, menuArtLoaded);
+            drawMenu(window, font, menuBackground);
         }
-        else
+        else if (currentState == STATE_CHAR_SELECT)
         {
-
-        // Shehar ka map draw karo.
-        drawCityMap(window);
-
-        // Current pickup ya delivery target ko highlight karo.
-        if (hasCurrentOrder() && failedCount < 3)
-        {
-            const int orderIndex = currentOrderIndex;
-
-            int targetRow;
-            int targetCol;
-
-            if (orderPackagePickedUp[orderIndex])
-            {
-                targetRow = orderDropRows[orderIndex];
-                targetCol = orderDropCols[orderIndex];
-            }
-            else
-            {
-                targetRow = orderPickupRows[orderIndex];
-                targetCol = orderPickupCols[orderIndex];
-            }
-
-            const sf::Vector2f target =
-                tileToPixelCenter(targetRow, targetCol);
-
-            sf::CircleShape targetMarker(14.0f);
-            targetMarker.setOrigin(14.0f, 14.0f);
-            targetMarker.setPosition(target);
-
-            if (orderPackagePickedUp[orderIndex])
-            {
-                targetMarker.setFillColor(
-                    sf::Color(255, 211, 75, 150)
-                );
-            }
-            else
-            {
-                targetMarker.setFillColor(
-                    sf::Color(57, 220, 126, 150)
-                );
-            }
-
-            targetMarker.setOutlineThickness(3.0f);
-            targetMarker.setOutlineColor(sf::Color::White);
-            window.draw(targetMarker);
-
-            if (targetArrowLoaded)
-            {
-                sf::Sprite targetArrow(targetArrowTexture);
-                const sf::Vector2u arrowSize =
-                    targetArrowTexture.getSize();
-                targetArrow.setOrigin(
-                    arrowSize.x / 2.0f, arrowSize.y / 2.0f
-                );
-                targetArrow.setScale(0.30f, 0.30f);
-                targetArrow.setPosition(target.x, target.y - 24.0f);
-                window.draw(targetArrow);
-            }
-        }
-
-        // Current rider ke mutabiq cycle, motorcycle, ya car draw hoti hai.
-        drawPlayer(window, vehicleSprites[currentCharacter]);
-
-        // Right-side information panel.
-        sf::RectangleShape sidePanel(
-            sf::Vector2f(WINDOW_W - MAP_PIXEL_W, WINDOW_H)
-        );
-
-        sidePanel.setPosition(MAP_PIXEL_W, 0.0f);
-        sidePanel.setFillColor(sf::Color(12, 27, 43));
-        sidePanel.setOutlineThickness(-2.0f);
-        sidePanel.setOutlineColor(sf::Color(68, 111, 137));
-        window.draw(sidePanel);
-
-        const float panelX = MAP_PIXEL_W + 28.0f;
-
-        drawText(window, font, fontOk,
-                 "DELIVERY SHIFT", 26, panelX, 30.0f,
-                 sf::Color(255, 220, 133));
-
-        drawText(window, font, fontOk,
-                 "RIDER", 15, panelX, 92.0f,
-                 sf::Color(117, 177, 201));
-
-        drawText(window, font, fontOk,
-                 RIDER_NAMES[currentCharacter] + " / " +
-                 VEHICLE_NAMES[currentCharacter],
-                 18, panelX, 116.0f, sf::Color::White);
-
-        const int riderSpeed = RIDER_MAX_SPEED[currentCharacter];
-        drawText(window, font, fontOk,
-                 "Speed: " + std::to_string(riderSpeed),
-                 18, panelX, 170.0f, sf::Color::White);
-
-        drawText(window, font, fontOk,
-                 "Cash: $" + std::to_string(orderScore),
-                 20, panelX, 220.0f,
-                 sf::Color(255, 220, 133));
-
-        drawText(window, font, fontOk,
-                 "Delivered: " + std::to_string(completedCount),
-                 17, panelX, 260.0f, sf::Color::White);
-
-        drawText(window, font, fontOk,
-                 "Failed: " + std::to_string(failedCount) + " / 3",
-                 17, panelX, 292.0f,
-                 sf::Color(239, 151, 126));
-
-        // Current order ki details.
-        if (hasCurrentOrder() && failedCount < 3)
-        {
-            const int orderIndex = currentOrderIndex;
-
-            drawText(window, font, fontOk,
-                     "Order: " + orderShopNames[orderIndex],
-                     17, panelX, 350.0f, sf::Color::White);
-
-            if (orderPackagePickedUp[orderIndex])
-            {
-                drawText(window, font, fontOk,
-                         "Deliver to: " +
-                         orderCustomerNames[orderIndex],
-                         16, panelX, 385.0f,
-                         sf::Color(255, 220, 133));
-            }
-            else
-            {
-                drawText(window, font, fontOk,
-                         "Pick up: " +
-                         orderShopNames[orderIndex],
-                         16, panelX, 385.0f,
-                         sf::Color(115, 234, 156));
-            }
-
-            const int secondsLeft = orderTimesRemaining[orderIndex];
-            drawText(window, font, fontOk,
-                     "Time left: " + std::to_string(secondsLeft) + " sec",
-                     18, panelX, 425.0f,
-                     sf::Color::White);
-        }
-
-        drawText(window, font, fontOk,
-                 orderStatusBanner,
-                 14, panelX, 500.0f,
-                 sf::Color(213, 230, 235));
-
-        if (hittingObstacle)
-        {
-            drawText(window, font, fontOk,
-                     "OBSTACLE: SPEED REDUCED",
-                     16, panelX, 580.0f,
-                     sf::Color(255, 121, 93));
-        }
-
-        drawText(window, font, fontOk,
-                 "E: pick up / deliver",
-                 15, panelX, 650.0f,
-                 sf::Color(117, 177, 201));
-
-        drawText(window, font, fontOk,
-                 "M: music player",
-                 15, panelX, 622.0f,
-                 sf::Color(117, 177, 201));
-
-        drawText(window, font, fontOk,
-                 "WASD / Arrows: move   1-3: rider   R: reset   ESC: quit",
-                 14, panelX, 694.0f,
-                 sf::Color(117, 177, 201));
-
-        // Shift result panel.
-        if (shiftOver)
-        {
-            const bool won =
-                completedCount == MAX_ORDERS;
-
-            sf::RectangleShape resultPanel(
-                sf::Vector2f(440.0f, 150.0f)
-            );
-
-            resultPanel.setPosition(
-                MAP_PIXEL_W / 2.0f - 220.0f,
-                WINDOW_H / 2.0f - 75.0f
-            );
-
-            resultPanel.setFillColor(
-                sf::Color(12, 27, 43, 240)
-            );
-
-            resultPanel.setOutlineThickness(3.0f);
-
-            if (won)
-            {
-                resultPanel.setOutlineColor(
-                    sf::Color(115, 234, 156)
-                );
-            }
-            else
-            {
-                resultPanel.setOutlineColor(
-                    sf::Color(239, 151, 126)
-                );
-            }
-
-            window.draw(resultPanel);
-
-            if (won)
-            {
-                drawText(window, font, fontOk,
-                         "SHIFT COMPLETE",
-                         30,
-                         MAP_PIXEL_W / 2.0f - 135.0f,
-                         WINDOW_H / 2.0f - 45.0f,
-                         sf::Color(255, 220, 133));
-            }
-            else
-            {
-                drawText(window, font, fontOk,
-                         "SHIFT OVER",
-                         30,
-                         MAP_PIXEL_W / 2.0f - 100.0f,
-                         WINDOW_H / 2.0f - 45.0f,
-                         sf::Color(255, 220, 133));
-            }
-
-            drawText(window, font, fontOk,
-                     "Press R to start a new shift",
-                     18,
-                     MAP_PIXEL_W / 2.0f - 130.0f,
-                     WINDOW_H / 2.0f + 15.0f,
-                     sf::Color::White);
-        }
-
-        }
-
-        if (currentState == STATE_CHAR_SELECT)
-        {
-            drawRiderSelection(
-                window, font, fontOk, selectedCharacter,
-                vehicleSprites[0], vehicleSprites[1], vehicleSprites[2]
+            drawCharacterSelection(
+                window, font, characterTexture,
+                vehicleSprites, selectedCharacter
             );
         }
         else if (currentState == STATE_INSTRUCTIONS)
         {
-            drawInstructions(window, font, fontOk);
-        }
-        else if (currentState == STATE_PAUSED)
-        {
-            drawPauseScreen(window, font, fontOk);
+            drawInstructions(window, font, menuBackground);
         }
         else if (currentState == STATE_LEADERBOARD)
         {
-            drawLeaderboard(window, font, fontOk);
+            window.clear(sf::Color(10, 25, 42));
+            drawDimmedBackground(window, menuBackground);
+            sf::RectangleShape panel(sf::Vector2f(850.0f, 560.0f));
+            panel.setPosition(263.0f, 100.0f);
+            panel.setFillColor(sf::Color(11, 31, 52, 242));
+            panel.setOutlineThickness(3.0f);
+            panel.setOutlineColor(sf::Color(93, 174, 193));
+            window.draw(panel);
+            drawHighScores(window, font, 390.0f, 150.0f);
+            drawText(window, font, "Press ENTER or ESC to return", 20,
+                     490.0f, 650.0f, sf::Color(255, 220, 133));
+            window.display();
         }
-
-        if (musicScreenOpen)
+        else if (currentState == STATE_MUSIC)
         {
-            drawMusicPlayer(window, font, fontOk, backgroundMusic);
+            drawMusicScreen(window, font, menuBackground, backgroundMusic);
         }
-
-        window.display();
+        else if (currentState == STATE_PLAYING ||
+                 currentState == STATE_PAUSED)
+        {
+            drawGame(window, font, vehicleSprites, burgerShopTexture,
+                     pizzaShopTexture, selectedCharacter, currentState);
+        }
+        else if (currentState == STATE_GAME_OVER ||
+                 currentState == STATE_VICTORY)
+        {
+            drawEndScreen(window, font, menuBackground,
+                          currentState == STATE_VICTORY);
+        }
     }
-
-    backgroundMusic.stop();
 
     return 0;
 }

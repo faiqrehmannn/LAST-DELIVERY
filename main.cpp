@@ -104,8 +104,11 @@ int main()
                     setupPlayer(1, tileToPixelCenter(4, 5));
                 if (event.key.code == sf::Keyboard::Num3)
                     setupPlayer(2, tileToPixelCenter(4, 5));
-                if (event.key.code == sf::Keyboard::R)
-                    setupPlayer(currentCharacter, tileToPixelCenter(4, 5));
+               if (event.key.code == sf::Keyboard::R)
+{
+    setupPlayer(currentCharacter, tileToPixelCenter(4, 5));
+    resetOrders();
+}
             }
         }
 

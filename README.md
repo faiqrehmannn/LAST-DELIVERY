@@ -44,9 +44,10 @@ The game loads its font and shop illustrations from `assets/`. CMake copies
 the asset folder next to the game executable after each build, so the game
 can also find these files when it is started from the `build/` folder.
 
-MP3 music is not included in this public repository. The `assets/music/`
-folder contains setup notes; add only songs you have permission to use on
-your own computer. Music playback is not enabled in this version yet.
+Press `M` to open the music player. Music files are not included in this
+public repository. Put your own permitted MP3 files in `assets/music/` using
+the filenames listed in `assets/music/README.md`; each person must supply
+their own music files.
 
 ## Build and run
 

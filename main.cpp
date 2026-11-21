@@ -38,6 +38,8 @@ int selectedMusicTrack = 0;
 std::string musicStatus = "Choose a song and press ENTER to play.";
 bool musicScreenOpen = false;
 bool wasOnObstacle = false;
+GameState currentState = STATE_MENU;
+int selectedCharacter = 0;
 
 void loadGameSounds()
 {

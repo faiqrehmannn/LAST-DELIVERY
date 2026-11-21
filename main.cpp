@@ -227,7 +227,34 @@ drawText(window, font, fontOk,
         drawText(window, font, fontOk,
                  "WASD / Arrows: move   1-3: rider   R: reset   ESC: quit",
                  14, panelX, 694.0f, sf::Color(117, 177, 201));
+if (failedCount >= 3 || allOrdersCompleted())
+{
+    sf::RectangleShape resultPanel(sf::Vector2f(440.0f, 150.0f));
+    resultPanel.setPosition(
+        MAP_PIXEL_W / 2.0f - 220.0f,
+        WINDOW_H / 2.0f - 75.0f
+    );
+    resultPanel.setFillColor(sf::Color(12, 27, 43, 240));
+    resultPanel.setOutlineThickness(3.0f);
+    resultPanel.setOutlineColor(
+        allOrdersCompleted()
+            ? sf::Color(115, 234, 156)
+            : sf::Color(239, 151, 126)
+    );
+    window.draw(resultPanel);
 
+    drawText(window, font, fontOk,
+             allOrdersCompleted() ? "SHIFT COMPLETE" : "SHIFT OVER",
+             30, MAP_PIXEL_W / 2.0f - 135.0f,
+             WINDOW_H / 2.0f - 45.0f,
+             sf::Color(255, 220, 133));
+
+    drawText(window, font, fontOk,
+             "Press R to start a new shift",
+             18, MAP_PIXEL_W / 2.0f - 130.0f,
+             WINDOW_H / 2.0f + 15.0f,
+             sf::Color::White);
+}
         window.display();
     }
 

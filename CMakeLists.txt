@@ -19,13 +19,13 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(SFML)
 FetchContent_GetProperties(SFML SOURCE_DIR SFML_SOURCE_DIR)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+
 add_executable(LastDelivery main.cpp)
 target_compile_features(LastDelivery PRIVATE cxx_std_11)
 target_compile_definitions(LastDelivery PRIVATE SFML_STATIC)
 target_link_libraries(LastDelivery PRIVATE sfml-graphics sfml-window sfml-system sfml-audio)
 
-# Keep images and other runtime files beside the executable. This lets the
-# game find assets/ when it is launched from the build folder.
 add_custom_command(
     TARGET LastDelivery POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -33,7 +33,8 @@ add_custom_command(
             "$<TARGET_FILE_DIR:LastDelivery>/assets"
 )
 
-# SFML Audio needs OpenAL when the Windows game starts.
+# SFML Audio links to OpenAL at runtime on Windows. Copy the matching DLL
+# beside the game executable so Windows can start the program.
 if(WIN32 AND SFML_BUILD_AUDIO)
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(SFML_OPENAL_DLL "${SFML_SOURCE_DIR}/extlibs/bin/x64/openal32.dll")

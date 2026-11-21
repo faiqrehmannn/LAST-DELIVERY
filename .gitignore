@@ -1,3 +1,4 @@
-build/
-.vs/
+/build/
+/highscores.txt
+*.exe
 /assets/music/*.mp3

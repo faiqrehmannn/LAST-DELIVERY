@@ -76,6 +76,25 @@ int main()
 
             if (event.type == sf::Event::KeyPressed)
             {
+              if (event.key.code == sf::Keyboard::E &&
+    failedCount < 3 &&
+    hasCurrentOrder() &&
+    isNearCurrentOrderTarget())
+{
+    if (!orderPackagePickedUp[currentOrderIndex])
+    {
+        orderPackagePickedUp[currentOrderIndex] = true;
+        orderStatusBanner =
+            "Package picked up! Deliver it to " +
+            orderCustomerNames[currentOrderIndex] + ".";
+    }
+    else
+    {
+        completeCurrentOrder(
+            RIDER_SCORE_MULTIPLIER[currentCharacter]
+        );
+    }
+}
                 if (event.key.code == sf::Keyboard::Escape)
                     window.close();
                 if (event.key.code == sf::Keyboard::Num1)

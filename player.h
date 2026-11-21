@@ -186,11 +186,20 @@ void updatePlayerMovement(float deltaTime)
             playerAngle = 0.0f;
     }
 
-    hittingObstacle = isPlayerOnObstacle();
+       hittingObstacle = isPlayerOnObstacle();
 
     float speed = RIDER_MAX_SPEED[currentCharacter];
 
-    if (hittingObstacle)
+    const float normalDistance = speed * deltaTime;
+    const float predictedX =
+        playerPosition.x + moveX * normalDistance;
+    const float predictedY =
+        playerPosition.y + moveY * normalDistance;
+
+    const bool enteringObstacle =
+        isPlayerOnObstacleAt(predictedX, predictedY);
+
+    if (hittingObstacle || enteringObstacle)
     {
         speed = speed * RIDER_OBSTACLE_FACTOR[currentCharacter];
     }
@@ -198,7 +207,6 @@ void updatePlayerMovement(float deltaTime)
     const float distance = speed * deltaTime;
     const float newX = playerPosition.x + moveX * distance;
     const float newY = playerPosition.y + moveY * distance;
-
     wallImpact = false;
 
     // X aur Y alag move karne se wall ke saath slide karna mumkin hota hai

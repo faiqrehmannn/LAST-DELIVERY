@@ -84,18 +84,6 @@ bool canPlayerMoveTo(float newX, float newY)
     return true;
 }
 
-    const int firstRow = box.top / TILE_SIZE;
-    const int lastRow = (box.top + box.height - 1.0f) / TILE_SIZE;
-    const int firstCol = box.left / TILE_SIZE;
-    const int lastCol = (box.left + box.width - 1.0f) / TILE_SIZE;
-
-    // Collision box ke char corners check hote hain
-    return !isSolidTile(firstRow, firstCol) &&
-           !isSolidTile(firstRow, lastCol) &&
-           !isSolidTile(lastRow, firstCol) &&
-           !isSolidTile(lastRow, lastCol);
-}
-
 // Check karta hai ke rider pothole tile par hai ya nahi
 bool isPlayerOnObstacleAt(float centerX, float centerY)
 {

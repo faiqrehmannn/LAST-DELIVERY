@@ -68,7 +68,8 @@ void resetOrders()
     setOrder(2, "Coffee Corner", "House 18", 12, 10, 8, 18, 100.0f, 200);
     setOrder(3, "Pizza Shop", "House 2", 2, 4, 11, 2, 95.0f, 250);
     setOrder(4, "Burger Hub", "House 17", 7, 2, 13, 17, 90.0f, 300);
-    setOrder(5, "Coffee Corner", "House 15", 12, 16, 6, 15, 85.0f, 400);
+    // Coffee Corner map mein row 11, column 16 par hai.
+setOrder(5, "Coffee Corner", "House 15", 11, 16, 6, 15, 85.0f, 400);
 }
 
 // Check karta hai ke tamam orders complete ho gaye hain ya nahi

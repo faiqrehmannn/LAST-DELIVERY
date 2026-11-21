@@ -210,7 +210,28 @@ void updatePlayerMovement(float deltaTime)
         else
             wallImpact = true;
     }
+    const float actualMoveX = playerPosition.x - oldPlayerX;
+    const float actualMoveY = playerPosition.y - oldPlayerY;
 
+    if (actualMoveX != 0.0f || actualMoveY != 0.0f)
+    {
+        if (actualMoveX > 0.0f && actualMoveY < 0.0f)
+            playerAngle = 45.0f;
+        else if (actualMoveX > 0.0f && actualMoveY > 0.0f)
+            playerAngle = 135.0f;
+        else if (actualMoveX < 0.0f && actualMoveY > 0.0f)
+            playerAngle = 225.0f;
+        else if (actualMoveX < 0.0f && actualMoveY < 0.0f)
+            playerAngle = 315.0f;
+        else if (actualMoveX > 0.0f)
+            playerAngle = 90.0f;
+        else if (actualMoveX < 0.0f)
+            playerAngle = 270.0f;
+        else if (actualMoveY > 0.0f)
+            playerAngle = 180.0f;
+        else
+            playerAngle = 0.0f;
+    }
     hittingObstacle = isPlayerOnObstacle();
 }
 

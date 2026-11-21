@@ -1,7 +1,7 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
 #include <string>
-
+#include "Order.h"
 #include "constant.h"
 #include "Map.h"
 #include "player.h"
@@ -54,6 +54,7 @@ int main()
                     window.close();
                 if (event.key.code == sf::Keyboard::Num1)
                     setupPlayer(0, tileToPixelCenter(4, 5));
+              resetOrders();
                 if (event.key.code == sf::Keyboard::Num2)
                     setupPlayer(1, tileToPixelCenter(4, 5));
                 if (event.key.code == sf::Keyboard::Num3)
@@ -64,7 +65,16 @@ int main()
         }
 
         updatePlayerMovement(deltaTime);
+        // Active order ka timer chalao aur time khatam ho to order fail karo.
+if (failedCount < 3 && hasCurrentOrder())
+{
+    updateOrderTimer(deltaTime);
 
+    if (isOrderExpired())
+    {
+        failCurrentOrder();
+    }
+}
         window.clear(sf::Color(13, 20, 29));
         drawCityMap(window);
         drawPlayer(window);

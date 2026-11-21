@@ -122,6 +122,34 @@ if (failedCount < 3 && hasCurrentOrder())
 }
         window.clear(sf::Color(13, 20, 29));
         drawCityMap(window);
+      // Current pickup ya delivery target ko map par highlight karo.
+if (hasCurrentOrder() && failedCount < 3)
+{
+    const int orderIndex = currentOrderIndex;
+
+    const int targetRow = orderPackagePickedUp[orderIndex]
+        ? orderDropRows[orderIndex]
+        : orderPickupRows[orderIndex];
+
+    const int targetCol = orderPackagePickedUp[orderIndex]
+        ? orderDropCols[orderIndex]
+        : orderPickupCols[orderIndex];
+
+    const sf::Vector2f target =
+        tileToPixelCenter(targetRow, targetCol);
+
+    sf::CircleShape targetMarker(14.0f);
+    targetMarker.setOrigin(14.0f, 14.0f);
+    targetMarker.setPosition(target);
+    targetMarker.setFillColor(
+        orderPackagePickedUp[orderIndex]
+            ? sf::Color(255, 211, 75, 150)
+            : sf::Color(57, 220, 126, 150)
+    );
+    targetMarker.setOutlineThickness(3.0f);
+    targetMarker.setOutlineColor(sf::Color::White);
+    window.draw(targetMarker);
+}
         drawPlayer(window);
 
         sf::RectangleShape sidePanel(sf::Vector2f(WINDOW_W - MAP_PIXEL_W,

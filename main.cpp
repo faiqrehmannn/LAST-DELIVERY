@@ -144,6 +144,52 @@ if (failedCount < 3 && hasCurrentOrder())
         drawText(window, font, fontOk,
                  "Speed: " + std::to_string((int)RIDER_MAX_SPEED[currentCharacter]),
                  18, panelX, 170.0f, sf::Color::White);
+      drawText(window, font, fontOk,
+         "Cash: $" + std::to_string(orderScore),
+         20, panelX, 220.0f, sf::Color(255, 220, 133));
+
+drawText(window, font, fontOk,
+         "Delivered: " + std::to_string(completedCount),
+         17, panelX, 260.0f, sf::Color::White);
+
+drawText(window, font, fontOk,
+         "Failed: " + std::to_string(failedCount) + " / 3",
+         17, panelX, 292.0f, sf::Color(239, 151, 126));
+
+if (hasCurrentOrder() && failedCount < 3)
+{
+    const int orderIndex = currentOrderIndex;
+    const int secondsLeft = orderTimesRemaining[orderIndex];
+
+    drawText(window, font, fontOk,
+             "Order: " + orderShopNames[orderIndex],
+             17, panelX, 350.0f, sf::Color::White);
+
+    if (orderPackagePickedUp[orderIndex])
+    {
+        drawText(window, font, fontOk,
+                 "Deliver to: " + orderCustomerNames[orderIndex],
+                 16, panelX, 385.0f, sf::Color(255, 220, 133));
+    }
+    else
+    {
+        drawText(window, font, fontOk,
+                 "Pick up: " + orderShopNames[orderIndex],
+                 16, panelX, 385.0f, sf::Color(115, 234, 156));
+    }
+
+    drawText(window, font, fontOk,
+             "Time left: " + std::to_string(secondsLeft) + " sec",
+             18, panelX, 425.0f, sf::Color::White);
+}
+
+drawText(window, font, fontOk,
+         orderStatusBanner,
+         14, panelX, 500.0f, sf::Color(213, 230, 235));
+
+drawText(window, font, fontOk,
+         "E: pick up / deliver",
+         15, panelX, 650.0f, sf::Color(117, 177, 201));
         if (hittingObstacle)
             drawText(window, font, fontOk, "OBSTACLE: SPEED REDUCED", 16,
                      panelX, 580.0f, sf::Color(255, 121, 93));

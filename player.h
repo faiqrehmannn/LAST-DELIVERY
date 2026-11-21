@@ -95,14 +95,17 @@ bool canPlayerMoveTo(float newX, float newY)
 }
 
 // Check karta hai ke rider pothole tile par hai ya nahi
-bool isPlayerOnObstacle()
+bool isPlayerOnObstacleAt(float centerX, float centerY)
 {
-    const sf::FloatRect box = getPlayerBounds();
+    const sf::FloatRect box =
+        getPlayerBoundsAt(centerX, centerY);
 
     const int firstRow = box.top / TILE_SIZE;
-    const int lastRow = (box.top + box.height - 1.0f) / TILE_SIZE;
+    const int lastRow =
+        (box.top + box.height - 1.0f) / TILE_SIZE;
     const int firstCol = box.left / TILE_SIZE;
-    const int lastCol = (box.left + box.width - 1.0f) / TILE_SIZE;
+    const int lastCol =
+        (box.left + box.width - 1.0f) / TILE_SIZE;
 
     for (int row = firstRow; row <= lastRow; row++)
     {
@@ -118,6 +121,14 @@ bool isPlayerOnObstacle()
     }
 
     return false;
+}
+
+bool isPlayerOnObstacle()
+{
+    return isPlayerOnObstacleAt(
+        playerPosition.x,
+        playerPosition.y
+    );
 }
 
 // Keyboard input ke mutabiq rider move karta hai

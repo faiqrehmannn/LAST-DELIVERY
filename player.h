@@ -106,30 +106,29 @@ void updatePlayerMovement(float deltaTime)
     float moveX = 0.0f;
     float moveY = 0.0f;
 
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) ||
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) ||
         sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
     {
-        moveY = -1.0f;
+        moveY -= 1.0f;
     }
 
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) ||
         sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
     {
-        moveY = 1.0f;
+        moveY += 1.0f;
     }
 
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) ||
         sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
     {
-        moveX = -1.0f;
+        moveX -= 1.0f;
     }
 
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) ||
         sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
     {
-        moveX = 1.0f;
+        moveX += 1.0f;
     }
-
     // Diagonal movement ko normalize karta hai taake speed zyada na ho
     const float length = std::sqrt(moveX * moveX + moveY * moveY);
 
@@ -138,7 +137,15 @@ void updatePlayerMovement(float deltaTime)
         moveX = moveX / length;
         moveY = moveY / length;
 
-        if (moveX > 0.0f)
+                if (moveX > 0.0f && moveY < 0.0f)
+            playerAngle = 45.0f;
+        else if (moveX > 0.0f && moveY > 0.0f)
+            playerAngle = 135.0f;
+        else if (moveX < 0.0f && moveY > 0.0f)
+            playerAngle = 225.0f;
+        else if (moveX < 0.0f && moveY < 0.0f)
+            playerAngle = 315.0f;
+        else if (moveX > 0.0f)
             playerAngle = 90.0f;
         else if (moveX < 0.0f)
             playerAngle = 270.0f;

@@ -210,7 +210,227 @@ void drawMusicPlayer(sf::RenderWindow& window, sf::Font& font, bool fontOk,
              "LEFT/RIGHT: change song   M or ESC: close",
              14, 405.0f, 592.0f, sf::Color(214, 229, 237));
 }
+void drawMainMenu(sf::RenderWindow& window, sf::Font& font, bool fontOk,
+                  sf::Texture& menuTexture, bool menuArtLoaded)
+{
+    if (menuArtLoaded)
+    {
+        sf::Sprite background(menuTexture);
+        sf::Vector2u imageSize = menuTexture.getSize();
 
+        background.setScale(
+            WINDOW_W / (float)imageSize.x,
+            WINDOW_H / (float)imageSize.y
+        );
+
+        window.draw(background);
+    }
+    else
+    {
+        window.clear(sf::Color(35, 61, 76));
+        drawText(window, font, fontOk, "LAST DELIVERY", 58,
+                 115.0f, 100.0f, sf::Color(255, 220, 133));
+    }
+
+    // These click areas line up with the buttons in menu-reference.jpeg.
+    sf::FloatRect buttons[3] = {
+        sf::FloatRect(140.0f, 303.0f, 395.0f, 112.0f),
+        sf::FloatRect(140.0f, 439.0f, 395.0f, 112.0f),
+        sf::FloatRect(140.0f, 574.0f, 395.0f, 112.0f)
+    };
+
+    sf::Vector2i mouse = sf::Mouse::getPosition(window);
+
+    for (int i = 0; i < 3; i++)
+    {
+        if (buttons[i].contains(mouse.x, mouse.y))
+        {
+            sf::RectangleShape highlight(
+                sf::Vector2f(buttons[i].width, buttons[i].height)
+            );
+
+            highlight.setPosition(buttons[i].left, buttons[i].top);
+            highlight.setFillColor(sf::Color(255, 220, 133, 35));
+            highlight.setOutlineThickness(3.0f);
+            highlight.setOutlineColor(sf::Color(255, 220, 133));
+            window.draw(highlight);
+        }
+    }
+
+    drawText(window, font, fontOk, "M: MUSIC PLAYER", 16,
+             WINDOW_W - 205.0f, WINDOW_H - 38.0f, sf::Color::White);
+}
+
+void drawRiderCard(sf::RenderWindow& window, sf::Font& font, bool fontOk,
+                   int rider, int selected, float x, sf::Sprite& vehicle)
+{
+    sf::RectangleShape card(sf::Vector2f(250.0f, 315.0f));
+    card.setPosition(x, 200.0f);
+
+    if (rider == selected)
+        card.setFillColor(sf::Color(40, 86, 111));
+    else
+        card.setFillColor(sf::Color(20, 48, 70));
+
+    card.setOutlineThickness(rider == selected ? 4.0f : 1.0f);
+
+    if (rider == selected)
+        card.setOutlineColor(sf::Color(255, 220, 133));
+    else
+        card.setOutlineColor(sf::Color(83, 132, 154));
+
+    window.draw(card);
+
+    sf::Sprite preview = vehicle;
+    sf::IntRect area = preview.getTextureRect();
+    preview.setOrigin(area.width / 2.0f, area.height / 2.0f);
+    preview.setScale(0.10f, 0.10f);
+    preview.setPosition(x + 125.0f, 275.0f);
+    window.draw(preview);
+
+    int riderSpeed = RIDER_MAX_SPEED[rider];
+
+    drawText(window, font, fontOk,
+             std::to_string(rider + 1) + ". " + RIDER_NAMES[rider],
+             22, x + 20.0f, 350.0f, sf::Color::White);
+
+    if (RIDER_IS_FEMALE[rider])
+        drawText(window, font, fontOk, "Girl courier", 15,
+                 x + 20.0f, 386.0f, sf::Color(166, 207, 221));
+    else
+        drawText(window, font, fontOk, "Boy courier", 15,
+                 x + 20.0f, 386.0f, sf::Color(166, 207, 221));
+
+    drawText(window, font, fontOk, VEHICLE_NAMES[rider], 16,
+             x + 20.0f, 414.0f, sf::Color(255, 220, 133));
+
+    drawText(window, font, fontOk,
+             "Speed: " + std::to_string(riderSpeed),
+             14, x + 20.0f, 455.0f, sf::Color(214, 229, 237));
+
+    drawText(window, font, fontOk,
+             "Score bonus: " +
+             std::to_string(RIDER_SCORE_MULTIPLIER[rider]) + "x",
+             14, x + 20.0f, 482.0f, sf::Color(214, 229, 237));
+}
+
+void drawRiderSelection(sf::RenderWindow& window, sf::Font& font,
+                        bool fontOk, int selected,
+                        sf::Sprite& cycle, sf::Sprite& motorcycle,
+                        sf::Sprite& car)
+{
+    sf::RectangleShape shade(sf::Vector2f(WINDOW_W, WINDOW_H));
+    shade.setFillColor(sf::Color(3, 10, 18, 205));
+    window.draw(shade);
+
+    sf::RectangleShape panel(sf::Vector2f(900.0f, 545.0f));
+    panel.setPosition(238.0f, 110.0f);
+    panel.setFillColor(sf::Color(12, 31, 50, 248));
+    panel.setOutlineThickness(3.0f);
+    panel.setOutlineColor(sf::Color(82, 169, 188));
+    window.draw(panel);
+
+    drawText(window, font, fontOk, "CHOOSE YOUR RIDER", 34,
+             490.0f, 130.0f, sf::Color(255, 220, 133));
+
+    drawRiderCard(window, font, fontOk, 0, selected, 278.0f, cycle);
+    drawRiderCard(window, font, fontOk, 1, selected, 563.0f, motorcycle);
+    drawRiderCard(window, font, fontOk, 2, selected, 848.0f, car);
+
+    drawText(window, font, fontOk,
+             "Click a rider or press 1, 2, or 3. ENTER starts.",
+             15, 450.0f, 525.0f, sf::Color(214, 229, 237));
+
+    sf::RectangleShape startButton(sf::Vector2f(280.0f, 56.0f));
+    startButton.setPosition(548.0f, 570.0f);
+    startButton.setFillColor(sf::Color(30, 135, 104));
+    startButton.setOutlineThickness(2.0f);
+    startButton.setOutlineColor(sf::Color(155, 221, 183));
+    window.draw(startButton);
+
+    drawText(window, font, fontOk, "START DELIVERY", 20,
+             602.0f, 585.0f, sf::Color::White);
+}
+
+void drawInstructions(sf::RenderWindow& window, sf::Font& font, bool fontOk)
+{
+    sf::RectangleShape shade(sf::Vector2f(WINDOW_W, WINDOW_H));
+    shade.setFillColor(sf::Color(3, 10, 18, 205));
+    window.draw(shade);
+
+    sf::RectangleShape panel(sf::Vector2f(820.0f, 510.0f));
+    panel.setPosition(278.0f, 125.0f);
+    panel.setFillColor(sf::Color(12, 31, 50, 248));
+    panel.setOutlineThickness(3.0f);
+    panel.setOutlineColor(sf::Color(82, 169, 188));
+    window.draw(panel);
+
+    drawText(window, font, fontOk, "HOW TO PLAY", 34,
+             545.0f, 155.0f, sf::Color(255, 220, 133));
+
+    drawText(window, font, fontOk, "WASD or arrow keys: drive", 20,
+             360.0f, 245.0f, sf::Color::White);
+    drawText(window, font, fontOk,
+             "E: pick up a package or deliver it", 20,
+             360.0f, 295.0f, sf::Color::White);
+    drawText(window, font, fontOk,
+             "Follow the red arrow to the marked place.", 20,
+             360.0f, 345.0f, sf::Color::White);
+    drawText(window, font, fontOk,
+             "Avoid obstacles; they slow your vehicle.", 20,
+             360.0f, 395.0f, sf::Color::White);
+    drawText(window, font, fontOk,
+             "P or ESC: pause   M: music   R: restart", 18,
+             360.0f, 445.0f, sf::Color(166, 207, 221));
+
+    sf::RectangleShape backButton(sf::Vector2f(260.0f, 56.0f));
+    backButton.setPosition(558.0f, 535.0f);
+    backButton.setFillColor(sf::Color(37, 79, 105));
+    backButton.setOutlineThickness(2.0f);
+    backButton.setOutlineColor(sf::Color(82, 169, 188));
+    window.draw(backButton);
+
+    drawText(window, font, fontOk, "BACK TO MENU", 18,
+             608.0f, 551.0f, sf::Color::White);
+}
+
+void drawPauseScreen(sf::RenderWindow& window, sf::Font& font, bool fontOk)
+{
+    sf::RectangleShape shade(sf::Vector2f(WINDOW_W, WINDOW_H));
+    shade.setFillColor(sf::Color(3, 10, 18, 210));
+    window.draw(shade);
+
+    sf::RectangleShape panel(sf::Vector2f(520.0f, 430.0f));
+    panel.setPosition(428.0f, 165.0f);
+    panel.setFillColor(sf::Color(12, 31, 50, 250));
+    panel.setOutlineThickness(3.0f);
+    panel.setOutlineColor(sf::Color(82, 169, 188));
+    window.draw(panel);
+
+    drawText(window, font, fontOk, "SHIFT PAUSED", 34,
+             555.0f, 205.0f, sf::Color(255, 220, 133));
+
+    const float buttonY[3] = {290.0f, 375.0f, 460.0f};
+    const std::string labels[3] = {
+        "RESUME", "MAIN MENU", "QUIT GAME"
+    };
+
+    for (int i = 0; i < 3; i++)
+    {
+        sf::RectangleShape button(sf::Vector2f(300.0f, 58.0f));
+        button.setPosition(538.0f, buttonY[i]);
+        button.setFillColor(sf::Color(37, 79, 105));
+        button.setOutlineThickness(2.0f);
+        button.setOutlineColor(sf::Color(82, 169, 188));
+        window.draw(button);
+
+        drawText(window, font, fontOk, labels[i], 19,
+                 625.0f, buttonY[i] + 16.0f, sf::Color::White);
+    }
+
+    drawText(window, font, fontOk, "P or ESC: resume", 14,
+             570.0f, 535.0f, sf::Color(166, 207, 221));
+}
 // Check karta hai rider current pickup ya delivery point ke qareeb hai.
 bool isNearCurrentOrderTarget()
 {

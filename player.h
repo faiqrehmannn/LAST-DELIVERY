@@ -13,6 +13,8 @@ int currentCharacter = 0;
 
 // Pothole aur wall se contact ka status
 bool hittingObstacle = false;
+    const float oldPlayerX = playerPosition.x;
+    const float oldPlayerY = playerPosition.y;
 bool wallImpact = false;
 
 // Rider ko selected character aur starting position deta hai

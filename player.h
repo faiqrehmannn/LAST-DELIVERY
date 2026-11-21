@@ -276,6 +276,18 @@ void drawPlayer(sf::RenderWindow& window, sf::Sprite vehicleSprite)
     }
 
     vehicleSprite.setRotation(imageAngle);
+        if (wallImpact)
+    {
+        vehicleSprite.setColor(sf::Color(255, 100, 100));
+    }
+    else if (hittingObstacle)
+    {
+        vehicleSprite.setColor(sf::Color(255, 190, 90));
+    }
+    else
+    {
+        vehicleSprite.setColor(sf::Color::White);
+    }
 
     sf::CircleShape shadow(size * 0.72f);
     shadow.setOrigin(size * 0.72f, size * 0.72f);

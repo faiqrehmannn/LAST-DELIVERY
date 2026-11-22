@@ -4,7 +4,6 @@
 #include <SFML/Graphics.hpp>
 #include <fstream>
 #include <string>
-
 const int MAX_HIGH_SCORES = 10;
 static std::string highScoreNames[MAX_HIGH_SCORES];
 static int highScoreValues[MAX_HIGH_SCORES];

@@ -3,6 +3,7 @@
 
 #include <string>
 
+
 // Order list and status tracking
 const int MAX_ORDERS = 6;
 static std::string orderShopNames[MAX_ORDERS];

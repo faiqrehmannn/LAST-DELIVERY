@@ -3,7 +3,7 @@
 
 #include <string>
 
-// Each order detail is held in a matching position in these fixed arrays.
+// Order list and status tracking
 const int MAX_ORDERS = 6;
 static std::string orderShopNames[MAX_ORDERS];
 static std::string orderCustomerNames[MAX_ORDERS];

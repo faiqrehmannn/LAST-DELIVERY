@@ -33,7 +33,7 @@ enum GameState {
     STATE_VICTORY
 };
 
-// Character data is stored in matching fixed-size arrays.
+// Rider configurations and attributes
 const int CHARACTER_COUNT = 3;
 static const std::string RIDER_NAMES[CHARACTER_COUNT] = {
     "Noor", "Khan", "Jimmy"

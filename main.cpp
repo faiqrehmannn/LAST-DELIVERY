@@ -54,8 +54,7 @@ bool isNearBackground(sf::Color pixel, sf::Color background)
            std::abs(pixel.b - background.b) <= tolerance;
 }
 
-// Makes the flat outside background of each supplied JPG transparent.
-// The fixed stack is an ordinary array; it does not use a vector or pointer.
+// Flood-fill image background removal for vehicle textures
 bool loadVehicleImage(sf::Texture& texture, sf::Sprite& sprite,
                       const std::string& filename)
 {
@@ -298,7 +297,7 @@ void drawMusicScreen(sf::RenderWindow& window, sf::Font& font,
                  20, 420.0f, rowY + 11.0f, sf::Color::White);
     }
 
-    // اردو: بٹنوں کو گانوں کی فہرست سے نیچے رکھا ہے تاکہ وہ آپس میں نہ ٹکرائیں۔
+    // Music player control buttons
     const sf::FloatRect previousButton(400.0f, MUSIC_BUTTON_Y, 175.0f, 45.0f);
     const sf::FloatRect playButton(590.0f, MUSIC_BUTTON_Y, 205.0f, 45.0f);
     const sf::FloatRect nextButton(810.0f, MUSIC_BUTTON_Y, 175.0f, 45.0f);
@@ -479,7 +478,7 @@ void drawGame(sf::RenderWindow& window, sf::Font& font,
             ? orderDropCols[activeOrder] : orderPickupCols[activeOrder];
         const sf::Vector2f target = tileToPixelCenter(targetRow, targetCol);
 
-        // Urdu: ہلکا شفاف نشان رکھیں تاکہ نیچے والی دکان کی تصویر بھی نظر آئے۔
+        // Current target indicator circle
         sf::CircleShape marker(21.0f);
         marker.setOrigin(21.0f, 21.0f);
         marker.setPosition(target);
@@ -631,7 +630,7 @@ int main()
             GAME_SOUND_PATHS[soundIndex]
         );
     }
-    // اردو: کھیل کھلتے ہی اپنا بنایا ہوا ہلکا سا میوزک شروع کریں۔
+    // Start background music
     playSelectedMusic(backgroundMusic);
 
     sf::Font font;
@@ -719,156 +718,161 @@ int main()
             {
                 if (event.key.code == sf::Keyboard::Escape)
                 {
-                    if (currentState == STATE_MENU)
+                    switch (currentState)
                     {
-                        window.close();
-                    }
-                    else if (currentState == STATE_PLAYING)
-                    {
-                        currentState = STATE_PAUSED;
-                    }
-                    else if (currentState == STATE_MUSIC)
-                    {
-                        currentState = stateBeforeMusic;
-                    }
-                    else
-                    {
-                        currentState = STATE_MENU;
+                        case STATE_MENU:
+                            window.close();
+                            break;
+                        case STATE_PLAYING:
+                            currentState = STATE_PAUSED;
+                            break;
+                        case STATE_MUSIC:
+                            currentState = stateBeforeMusic;
+                            break;
+                        default:
+                            currentState = STATE_MENU;
+                            break;
                     }
                 }
+                else
+                {
+                    switch (currentState)
+                    {
+                        case STATE_MENU:
+                            if (event.key.code == sf::Keyboard::Enter)
+                            {
+                                currentState = STATE_CHAR_SELECT;
+                            }
+                            else if (event.key.code == sf::Keyboard::I)
+                            {
+                                currentState = STATE_INSTRUCTIONS;
+                            }
+                            else if (event.key.code == sf::Keyboard::H)
+                            {
+                                loadHighScores();
+                                currentState = STATE_LEADERBOARD;
+                            }
+                            else if (event.key.code == sf::Keyboard::M)
+                            {
+                                stateBeforeMusic = STATE_MENU;
+                                currentState = STATE_MUSIC;
+                            }
+                            break;
 
-                if (currentState == STATE_MENU)
-                {
-                    if (event.key.code == sf::Keyboard::Enter)
-                    {
-                        currentState = STATE_CHAR_SELECT;
-                    }
-                    else if (event.key.code == sf::Keyboard::I)
-                    {
-                        currentState = STATE_INSTRUCTIONS;
-                    }
-                    else if (event.key.code == sf::Keyboard::H)
-                    {
-                        loadHighScores();
-                        currentState = STATE_LEADERBOARD;
-                    }
-                    else if (event.key.code == sf::Keyboard::M)
-                    {
-                        stateBeforeMusic = STATE_MENU;
-                        currentState = STATE_MUSIC;
-                    }
-                }
-                else if (currentState == STATE_MUSIC)
-                {
-                    if (event.key.code == sf::Keyboard::Up)
-                        moveMusicSelection(-1, backgroundMusic);
-                    else if (event.key.code == sf::Keyboard::Down)
-                        moveMusicSelection(1, backgroundMusic);
-                    else if (event.key.code == sf::Keyboard::Left)
-                    {
-                        moveMusicSelection(-1, backgroundMusic);
-                        playSelectedMusic(backgroundMusic);
-                    }
-                    else if (event.key.code == sf::Keyboard::Right)
-                    {
-                        moveMusicSelection(1, backgroundMusic);
-                        playSelectedMusic(backgroundMusic);
-                    }
-                    else if (event.key.code == sf::Keyboard::Enter)
-                        playSelectedMusic(backgroundMusic);
-                    else if (event.key.code == sf::Keyboard::Space)
-                    {
-                        if (backgroundMusic.getStatus() == sf::Music::Playing)
-                        {
-                            backgroundMusic.pause();
-                            musicMessage = "Music paused.";
-                        }
-                        else if (backgroundMusic.getStatus() == sf::Music::Paused)
-                        {
-                            backgroundMusic.play();
-                            musicMessage = "Now playing: " +
-                                MUSIC_TRACK_NAMES[selectedMusicTrack];
-                        }
-                        else
-                            playSelectedMusic(backgroundMusic);
-                    }
-                }
-                else if (currentState == STATE_CHAR_SELECT)
-                {
-                    if (event.key.code == sf::Keyboard::Num1) selectedCharacter = 0;
-                    if (event.key.code == sf::Keyboard::Num2) selectedCharacter = 1;
-                    if (event.key.code == sf::Keyboard::Num3) selectedCharacter = 2;
+                        case STATE_MUSIC:
+                            if (event.key.code == sf::Keyboard::Up)
+                                moveMusicSelection(-1, backgroundMusic);
+                            else if (event.key.code == sf::Keyboard::Down)
+                                moveMusicSelection(1, backgroundMusic);
+                            else if (event.key.code == sf::Keyboard::Left)
+                            {
+                                moveMusicSelection(-1, backgroundMusic);
+                                playSelectedMusic(backgroundMusic);
+                            }
+                            else if (event.key.code == sf::Keyboard::Right)
+                            {
+                                moveMusicSelection(1, backgroundMusic);
+                                playSelectedMusic(backgroundMusic);
+                            }
+                            else if (event.key.code == sf::Keyboard::Enter)
+                                playSelectedMusic(backgroundMusic);
+                            else if (event.key.code == sf::Keyboard::Space)
+                            {
+                                if (backgroundMusic.getStatus() == sf::Music::Playing)
+                                {
+                                    backgroundMusic.pause();
+                                    musicMessage = "Music paused.";
+                                }
+                                else if (backgroundMusic.getStatus() == sf::Music::Paused)
+                                {
+                                    backgroundMusic.play();
+                                    musicMessage = "Now playing: " +
+                                        MUSIC_TRACK_NAMES[selectedMusicTrack];
+                                }
+                                else
+                                    playSelectedMusic(backgroundMusic);
+                            }
+                            break;
 
-                    if (event.key.code == sf::Keyboard::Enter)
-                    {
-                        resetOrders();
-                        setupPlayer(selectedCharacter, tileToPixelCenter(4, 5));
-                        wasOnObstacle = false;
-                        highScoreSaved = false;
-                        currentState = STATE_PLAYING;
-                    }
-                }
-                else if (currentState == STATE_INSTRUCTIONS ||
-                         currentState == STATE_LEADERBOARD)
-                {
-                    if (event.key.code == sf::Keyboard::Enter)
-                    {
-                        currentState = STATE_MENU;
-                    }
-                }
-                else if (currentState == STATE_PLAYING)
-                {
-                    if (event.key.code == sf::Keyboard::M)
-                    {
-                        stateBeforeMusic = STATE_PLAYING;
-                        currentState = STATE_MUSIC;
-                    }
-                    if (event.key.code == sf::Keyboard::P)
-                    {
-                        currentState = STATE_PAUSED;
-                    }
-                    if (event.key.code == sf::Keyboard::R)
-                    {
-                        resetOrders();
-                        setupPlayer(selectedCharacter, tileToPixelCenter(4, 5));
-                        wasOnObstacle = false;
-                        highScoreSaved = false;
-                    }
-                }
-                else if (currentState == STATE_PAUSED)
-                {
-                    if (event.key.code == sf::Keyboard::M)
-                    {
-                        stateBeforeMusic = STATE_PAUSED;
-                        currentState = STATE_MUSIC;
-                    }
-                    if (event.key.code == sf::Keyboard::P)
-                    {
-                        currentState = STATE_PLAYING;
-                    }
-                    if (event.key.code == sf::Keyboard::R)
-                    {
-                        resetOrders();
-                        setupPlayer(selectedCharacter, tileToPixelCenter(4, 5));
-                        wasOnObstacle = false;
-                        highScoreSaved = false;
-                        currentState = STATE_PLAYING;
-                    }
-                }
-                else if (currentState == STATE_GAME_OVER ||
-                         currentState == STATE_VICTORY)
-                {
-                    if (event.key.code == sf::Keyboard::R)
-                    {
-                        resetOrders();
-                        setupPlayer(selectedCharacter, tileToPixelCenter(4, 5));
-                        wasOnObstacle = false;
-                        highScoreSaved = false;
-                        currentState = STATE_PLAYING;
-                    }
-                    else if (event.key.code == sf::Keyboard::Enter)
-                    {
-                        currentState = STATE_MENU;
+                        case STATE_CHAR_SELECT:
+                            if (event.key.code == sf::Keyboard::Num1) selectedCharacter = 0;
+                            else if (event.key.code == sf::Keyboard::Num2) selectedCharacter = 1;
+                            else if (event.key.code == sf::Keyboard::Num3) selectedCharacter = 2;
+                            else if (event.key.code == sf::Keyboard::Enter)
+                            {
+                                resetOrders();
+                                setupPlayer(selectedCharacter, tileToPixelCenter(4, 5));
+                                wasOnObstacle = false;
+                                highScoreSaved = false;
+                                currentState = STATE_PLAYING;
+                            }
+                            break;
+
+                        case STATE_INSTRUCTIONS:
+                        case STATE_LEADERBOARD:
+                            if (event.key.code == sf::Keyboard::Enter)
+                            {
+                                currentState = STATE_MENU;
+                            }
+                            break;
+
+                        case STATE_PLAYING:
+                            if (event.key.code == sf::Keyboard::M)
+                            {
+                                stateBeforeMusic = STATE_PLAYING;
+                                currentState = STATE_MUSIC;
+                            }
+                            else if (event.key.code == sf::Keyboard::P)
+                            {
+                                currentState = STATE_PAUSED;
+                            }
+                            else if (event.key.code == sf::Keyboard::R)
+                            {
+                                resetOrders();
+                                setupPlayer(selectedCharacter, tileToPixelCenter(4, 5));
+                                wasOnObstacle = false;
+                                highScoreSaved = false;
+                            }
+                            break;
+
+                        case STATE_PAUSED:
+                            if (event.key.code == sf::Keyboard::M)
+                            {
+                                stateBeforeMusic = STATE_PAUSED;
+                                currentState = STATE_MUSIC;
+                            }
+                            else if (event.key.code == sf::Keyboard::P)
+                            {
+                                currentState = STATE_PLAYING;
+                            }
+                            else if (event.key.code == sf::Keyboard::R)
+                            {
+                                resetOrders();
+                                setupPlayer(selectedCharacter, tileToPixelCenter(4, 5));
+                                wasOnObstacle = false;
+                                highScoreSaved = false;
+                                currentState = STATE_PLAYING;
+                            }
+                            break;
+
+                        case STATE_GAME_OVER:
+                        case STATE_VICTORY:
+                            if (event.key.code == sf::Keyboard::R)
+                            {
+                                resetOrders();
+                                setupPlayer(selectedCharacter, tileToPixelCenter(4, 5));
+                                wasOnObstacle = false;
+                                highScoreSaved = false;
+                                currentState = STATE_PLAYING;
+                            }
+                            else if (event.key.code == sf::Keyboard::Enter)
+                            {
+                                currentState = STATE_MENU;
+                            }
+                            break;
+
+                        default:
+                            break;
                     }
                 }
             }
@@ -879,83 +883,96 @@ int main()
                 const float mouseX = event.mouseButton.x;
                 const float mouseY = event.mouseButton.y;
 
-                if (currentState == STATE_MUSIC)
+                switch (currentState)
                 {
-                    bool clickedTrack = false;
-                    for (int i = 0; i < MUSIC_TRACK_COUNT; i++)
+                    case STATE_MUSIC:
                     {
-                        const sf::FloatRect trackRow(
-                            388.0f,
-                            MUSIC_TRACK_ROW_Y + i * MUSIC_TRACK_ROW_GAP,
-                            600.0f, MUSIC_TRACK_ROW_HEIGHT);
-                        if (trackRow.contains(mouseX, mouseY))
+                        bool clickedTrack = false;
+                        for (int i = 0; i < MUSIC_TRACK_COUNT; i++)
                         {
-                            selectedMusicTrack = i;
-                            playSelectedMusic(backgroundMusic);
-                            clickedTrack = true;
+                            const sf::FloatRect trackRow(
+                                388.0f,
+                                MUSIC_TRACK_ROW_Y + i * MUSIC_TRACK_ROW_GAP,
+                                600.0f, MUSIC_TRACK_ROW_HEIGHT);
+                            if (trackRow.contains(mouseX, mouseY))
+                            {
+                                selectedMusicTrack = i;
+                                playSelectedMusic(backgroundMusic);
+                                clickedTrack = true;
+                            }
                         }
+
+                        if (!clickedTrack &&
+                            sf::FloatRect(400.0f, MUSIC_BUTTON_Y, 175.0f, 45.0f)
+                                .contains(mouseX, mouseY))
+                        {
+                            moveMusicSelection(-1, backgroundMusic);
+                            playSelectedMusic(backgroundMusic);
+                        }
+                        else if (!clickedTrack &&
+                            sf::FloatRect(590.0f, MUSIC_BUTTON_Y, 205.0f, 45.0f)
+                                .contains(mouseX, mouseY))
+                        {
+                            if (backgroundMusic.getStatus() == sf::Music::Playing)
+                            {
+                                backgroundMusic.pause();
+                                musicMessage = "Music paused.";
+                            }
+                            else if (backgroundMusic.getStatus() == sf::Music::Paused)
+                            {
+                                backgroundMusic.play();
+                                musicMessage = "Now playing: " +
+                                    MUSIC_TRACK_NAMES[selectedMusicTrack];
+                            }
+                            else
+                                playSelectedMusic(backgroundMusic);
+                        }
+                        else if (!clickedTrack &&
+                            sf::FloatRect(810.0f, MUSIC_BUTTON_Y, 175.0f, 45.0f)
+                                .contains(mouseX, mouseY))
+                        {
+                            moveMusicSelection(1, backgroundMusic);
+                            playSelectedMusic(backgroundMusic);
+                        }
+                        break;
                     }
 
-                    if (!clickedTrack &&
-                        sf::FloatRect(400.0f, MUSIC_BUTTON_Y, 175.0f, 45.0f)
-                            .contains(mouseX, mouseY))
+                    case STATE_MENU:
                     {
-                        moveMusicSelection(-1, backgroundMusic);
-                        playSelectedMusic(backgroundMusic);
-                    }
-                    else if (!clickedTrack &&
-                        sf::FloatRect(590.0f, MUSIC_BUTTON_Y, 205.0f, 45.0f)
-                            .contains(mouseX, mouseY))
-                    {
-                        if (backgroundMusic.getStatus() == sf::Music::Playing)
+                        if (startButton.contains(mouseX, mouseY))
                         {
-                            backgroundMusic.pause();
-                            musicMessage = "Music paused.";
+                            currentState = STATE_CHAR_SELECT;
                         }
-                        else if (backgroundMusic.getStatus() == sf::Music::Paused)
+                        else if (instructionsButton.contains(mouseX, mouseY))
                         {
-                            backgroundMusic.play();
-                            musicMessage = "Now playing: " +
-                                MUSIC_TRACK_NAMES[selectedMusicTrack];
+                            currentState = STATE_INSTRUCTIONS;
                         }
-                        else
-                            playSelectedMusic(backgroundMusic);
-                    }
-                    else if (!clickedTrack &&
-                        sf::FloatRect(810.0f, MUSIC_BUTTON_Y, 175.0f, 45.0f)
-                            .contains(mouseX, mouseY))
-                    {
-                        moveMusicSelection(1, backgroundMusic);
-                        playSelectedMusic(backgroundMusic);
-                    }
-                }
-                else if (currentState == STATE_MENU)
-                {
-                    if (startButton.contains(mouseX, mouseY))
-                    {
-                        currentState = STATE_CHAR_SELECT;
-                    }
-                    else if (instructionsButton.contains(mouseX, mouseY))
-                    {
-                        currentState = STATE_INSTRUCTIONS;
-                    }
-                    else if (exitButton.contains(mouseX, mouseY))
-                    {
-                        window.close();
-                    }
-                }
-                else if (currentState == STATE_CHAR_SELECT &&
-                         mouseY >= CHARACTER_CARD_Y &&
-                         mouseY <= CHARACTER_CARD_Y + CHARACTER_CARD_H)
-                {
-                    for (int i = 0; i < CHARACTER_COUNT; i++)
-                    {
-                        if (mouseX >= CHARACTER_CARD_X[i] &&
-                            mouseX <= CHARACTER_CARD_X[i] + CHARACTER_CARD_W)
+                        else if (exitButton.contains(mouseX, mouseY))
                         {
-                            selectedCharacter = i;
+                            window.close();
                         }
+                        break;
                     }
+
+                    case STATE_CHAR_SELECT:
+                    {
+                        if (mouseY >= CHARACTER_CARD_Y &&
+                            mouseY <= CHARACTER_CARD_Y + CHARACTER_CARD_H)
+                        {
+                            for (int i = 0; i < CHARACTER_COUNT; i++)
+                            {
+                                if (mouseX >= CHARACTER_CARD_X[i] &&
+                                    mouseX <= CHARACTER_CARD_X[i] + CHARACTER_CARD_W)
+                                {
+                                    selectedCharacter = i;
+                                }
+                            }
+                        }
+                        break;
+                    }
+
+                    default:
+                        break;
                 }
             }
         }
@@ -1055,51 +1072,55 @@ int main()
             highScoreSaved = true;
         }
 
-        if (currentState == STATE_MENU)
+        switch (currentState)
         {
-            drawMenu(window, font, menuBackground);
-        }
-        else if (currentState == STATE_CHAR_SELECT)
-        {
-            drawCharacterSelection(
-                window, font, characterTexture,
-                vehicleSprites, selectedCharacter
-            );
-        }
-        else if (currentState == STATE_INSTRUCTIONS)
-        {
-            drawInstructions(window, font, menuBackground);
-        }
-        else if (currentState == STATE_LEADERBOARD)
-        {
-            window.clear(sf::Color(10, 25, 42));
-            drawDimmedBackground(window, menuBackground);
-            sf::RectangleShape panel(sf::Vector2f(850.0f, 560.0f));
-            panel.setPosition(263.0f, 100.0f);
-            panel.setFillColor(sf::Color(11, 31, 52, 242));
-            panel.setOutlineThickness(3.0f);
-            panel.setOutlineColor(sf::Color(93, 174, 193));
-            window.draw(panel);
-            drawHighScores(window, font, 390.0f, 150.0f);
-            drawText(window, font, "Press ENTER or ESC to return", 20,
-                     490.0f, 650.0f, sf::Color(255, 220, 133));
-            window.display();
-        }
-        else if (currentState == STATE_MUSIC)
-        {
-            drawMusicScreen(window, font, menuBackground, backgroundMusic);
-        }
-        else if (currentState == STATE_PLAYING ||
-                 currentState == STATE_PAUSED)
-        {
-            drawGame(window, font, vehicleSprites, burgerShopTexture,
-                     pizzaShopTexture, selectedCharacter, currentState);
-        }
-        else if (currentState == STATE_GAME_OVER ||
-                 currentState == STATE_VICTORY)
-        {
-            drawEndScreen(window, font, menuBackground,
-                          currentState == STATE_VICTORY);
+            case STATE_MENU:
+                drawMenu(window, font, menuBackground);
+                break;
+
+            case STATE_CHAR_SELECT:
+                drawCharacterSelection(
+                    window, font, characterTexture,
+                    vehicleSprites, selectedCharacter
+                );
+                break;
+
+            case STATE_INSTRUCTIONS:
+                drawInstructions(window, font, menuBackground);
+                break;
+
+            case STATE_LEADERBOARD:
+                window.clear(sf::Color(10, 25, 42));
+                drawDimmedBackground(window, menuBackground);
+                {
+                    sf::RectangleShape panel(sf::Vector2f(850.0f, 560.0f));
+                    panel.setPosition(263.0f, 100.0f);
+                    panel.setFillColor(sf::Color(11, 31, 52, 242));
+                    panel.setOutlineThickness(3.0f);
+                    panel.setOutlineColor(sf::Color(93, 174, 193));
+                    window.draw(panel);
+                }
+                drawHighScores(window, font, 390.0f, 150.0f);
+                drawText(window, font, "Press ENTER or ESC to return", 20,
+                         490.0f, 650.0f, sf::Color(255, 220, 133));
+                window.display();
+                break;
+
+            case STATE_MUSIC:
+                drawMusicScreen(window, font, menuBackground, backgroundMusic);
+                break;
+
+            case STATE_PLAYING:
+            case STATE_PAUSED:
+                drawGame(window, font, vehicleSprites, burgerShopTexture,
+                         pizzaShopTexture, selectedCharacter, currentState);
+                break;
+
+            case STATE_GAME_OVER:
+            case STATE_VICTORY:
+                drawEndScreen(window, font, menuBackground,
+                              currentState == STATE_VICTORY);
+                break;
         }
     }
 

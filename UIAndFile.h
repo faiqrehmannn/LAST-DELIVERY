@@ -12,9 +12,13 @@ static int highScoreCount = 0;
 
 static void sortHighScoresBubble()
 {
-    for (int i = 0; i < highScoreCount - 1; i++)
+    if (highScoreCount <= 1) return;
+
+    bool swapped;
+    do
     {
-        for (int j = 0; j < highScoreCount - i - 1; j++)
+        swapped = false;
+        for (int j = 0; j < highScoreCount - 1; j++)
         {
             if (highScoreValues[j] < highScoreValues[j + 1])
             {
@@ -25,9 +29,11 @@ static void sortHighScoresBubble()
                 std::string savedName = highScoreNames[j];
                 highScoreNames[j] = highScoreNames[j + 1];
                 highScoreNames[j + 1] = savedName;
+
+                swapped = true;
             }
         }
-    }
+    } while (swapped);
 }
 
 static void loadHighScores()

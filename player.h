@@ -6,7 +6,7 @@
 #include "constant.h"
 #include "Map.h"
 
-// Player data uses separate variables instead of a user-defined class.
+// Player position and state variables
 static sf::Vector2f playerPosition(0.0f, 0.0f);
 static float playerAngle = 0.0f;
 static bool hittingObstacle = false;

@@ -214,7 +214,7 @@ static void drawShop(sf::RenderWindow& window, float x, float y) {
         window.draw(windowGlass);
     }
 
-// اردو: دکان کی اصل تصویر کو ایک ٹائل کے اندر فٹ کر کے دکھاتے ہیں۔
+// Draw shop texture scaled to grid tile size
 static void drawShopImage(sf::RenderWindow& window, float x, float y,
                           const sf::Texture& shopTexture) {
         sf::RectangleShape sidewalk(sf::Vector2f(TILE_SIZE, TILE_SIZE));

@@ -17,7 +17,6 @@ The player selects a courier rider and navigates through a grid-based city to pi
 The project demonstrates core Programming Fundamentals concepts including 2D map grids, parallel 1D arrays for game entities, state-driven control flow, file handling for persistent high scores, and sorting algorithms.
 
 ---
-
 ## Game Features
 - **3 Playable Couriers:** Each has different speed, hitbox size, and score multiplier.
   - Noor: Bicycle (Speed: 170 px/s, Score Multiplier: 1.0x)

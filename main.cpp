@@ -672,7 +672,7 @@ int main()
     sf::Texture vehicleTextures[CHARACTER_COUNT];
     sf::Sprite vehicleSprites[CHARACTER_COUNT];
     loadVehicleImage(vehicleTextures[0], vehicleSprites[0], "assets/cycle.jpg");
-    loadVehicleImage(vehicleTextures[1], vehicleSprites[1], "assets/motorcycle.jpg");
+    loadVehicleImage(vehicleTextures[1], vehicleSprites[1], "assets/motorcycle.png");
     loadVehicleImage(vehicleTextures[2], vehicleSprites[2], "assets/car.jpg");
 
     sf::Texture burgerShopTexture;

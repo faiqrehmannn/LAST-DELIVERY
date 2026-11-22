@@ -43,34 +43,106 @@ int selectedMusicTrack = 0;
 GameState stateBeforeMusic = STATE_MENU;
 std::string musicMessage = "Choose a song, then press ENTER to play.";
 
-// Loads vehicle image, preferring transparent PNG if available
+const int MAX_ASSET_PIXELS = 800 * 800;
+static int backgroundPixelStack[MAX_ASSET_PIXELS];
+
+bool isNearBackground(sf::Color pixel, sf::Color background)
+{
+    const int tolerance = 22;
+    return std::abs(pixel.r - background.r) <= tolerance &&
+           std::abs(pixel.g - background.g) <= tolerance &&
+           std::abs(pixel.b - background.b) <= tolerance;
+}
+
+// Flood-fill image background removal for vehicle textures
 bool loadVehicleImage(sf::Texture& texture, sf::Sprite& sprite,
                       const std::string& filename)
 {
-    // Try transparent .png first
-    std::string pngPath = filename;
-    size_t dotPos = pngPath.rfind(".jpg");
-    if (dotPos != std::string::npos)
+    sf::Image image;
+    if (!image.loadFromFile(filename))
     {
-        pngPath.replace(dotPos, 4, ".png");
+        std::cout << "Could not load vehicle image: " << filename << std::endl;
+        return false;
     }
 
-    if (texture.loadFromFile(pngPath))
+    const sf::Vector2u imageSize = image.getSize();
+    const unsigned int pixelCount = imageSize.x * imageSize.y;
+
+    if (pixelCount == 0 || pixelCount > MAX_ASSET_PIXELS)
     {
-        texture.setSmooth(true);
-        sprite.setTexture(texture);
-        return true;
+        std::cout << "Vehicle image has an unsupported size: "
+                  << filename << std::endl;
+        return false;
     }
 
-    if (texture.loadFromFile(filename))
+    const int width = imageSize.x;
+    const int height = imageSize.y;
+
+    const sf::Color background = image.getPixel(0, 0);
+    unsigned int stackSize = 0;
+    image.setPixel(0, 0, sf::Color(0, 0, 0, 0));
+    backgroundPixelStack[stackSize++] = 0;
+
+    while (stackSize > 0)
     {
-        texture.setSmooth(true);
-        sprite.setTexture(texture);
-        return true;
+        const int pixelIndex = backgroundPixelStack[--stackSize];
+        const int x = pixelIndex % width;
+        const int y = pixelIndex / width;
+
+        const int neighborX[4] = {
+            x - 1,
+            x + 1,
+            x,
+            x
+        };
+        const int neighborY[4] = {
+            y,
+            y,
+            y - 1,
+            y + 1
+        };
+
+        for (int direction = 0; direction < 4; direction++)
+        {
+            const int nextX = neighborX[direction];
+            const int nextY = neighborY[direction];
+
+            if (nextX < 0 || nextX >= width ||
+                nextY < 0 || nextY >= height)
+            {
+                continue;
+            }
+
+            const sf::Color nextPixel = image.getPixel(
+                nextX,
+                nextY
+            );
+
+            if (nextPixel.a != 0 && isNearBackground(nextPixel, background))
+            {
+                image.setPixel(
+                    nextX,
+                    nextY,
+                    sf::Color(0, 0, 0, 0)
+                );
+
+                if (stackSize < MAX_ASSET_PIXELS)
+                {
+                    backgroundPixelStack[stackSize++] = nextY * width + nextX;
+                }
+            }
+        }
     }
 
-    std::cout << "Could not load vehicle image: " << filename << std::endl;
-    return false;
+    if (!texture.loadFromImage(image))
+    {
+        std::cout << "Could not prepare vehicle image: " << filename << std::endl;
+        return false;
+    }
+
+    texture.setSmooth(false);
+    sprite.setTexture(texture);
+    return true;
 }
 
 bool playSelectedMusic(sf::Music& music)
@@ -599,9 +671,9 @@ int main()
 
     sf::Texture vehicleTextures[CHARACTER_COUNT];
     sf::Sprite vehicleSprites[CHARACTER_COUNT];
-    loadVehicleImage(vehicleTextures[0], vehicleSprites[0], "assets/cycle.png");
-    loadVehicleImage(vehicleTextures[1], vehicleSprites[1], "assets/motorcycle.png");
-    loadVehicleImage(vehicleTextures[2], vehicleSprites[2], "assets/car.png");
+    loadVehicleImage(vehicleTextures[0], vehicleSprites[0], "assets/cycle.jpg");
+    loadVehicleImage(vehicleTextures[1], vehicleSprites[1], "assets/motorcycle.jpg");
+    loadVehicleImage(vehicleTextures[2], vehicleSprites[2], "assets/car.jpg");
 
     sf::Texture burgerShopTexture;
     if (!burgerShopTexture.loadFromFile("assets/burger-shop.png"))

@@ -2,7 +2,6 @@
 
 #include <SFML/Graphics.hpp>
 #include <string>
-
 // Window and map dimensions
 const int TILE_SIZE = 48;
 const int MAP_COLS = 20;

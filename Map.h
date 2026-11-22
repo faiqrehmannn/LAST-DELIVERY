@@ -5,7 +5,6 @@
 #include "constant.h"
 
 static int cityGrid[MAP_ROWS][MAP_COLS];
-
 static void loadDefaultCity() {
         int city[MAP_ROWS][MAP_COLS] = {
             {1,1,1,2,2,0,0,2,1,1,1,2,0,0,2,1,1,1,1,2},

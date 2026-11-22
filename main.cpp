@@ -10,9 +10,6 @@
 #include "Order.h"
 #include "UIAndFile.h"
 
-const int MAX_ASSET_PIXELS = 800 * 800;
-static int backgroundPixelStack[MAX_ASSET_PIXELS];
-
 const int CHARACTER_CARD_X[CHARACTER_COUNT] = {55, 510, 965};
 const int CHARACTER_CARD_Y = 132;
 const int CHARACTER_CARD_W = 356;
@@ -46,103 +43,34 @@ int selectedMusicTrack = 0;
 GameState stateBeforeMusic = STATE_MENU;
 std::string musicMessage = "Choose a song, then press ENTER to play.";
 
-bool isNearBackground(sf::Color pixel, sf::Color background)
-{
-    const int tolerance = 22;
-    return std::abs(pixel.r - background.r) <= tolerance &&
-           std::abs(pixel.g - background.g) <= tolerance &&
-           std::abs(pixel.b - background.b) <= tolerance;
-}
-
-// Flood-fill image background removal for vehicle textures
+// Loads vehicle image, preferring transparent PNG if available
 bool loadVehicleImage(sf::Texture& texture, sf::Sprite& sprite,
                       const std::string& filename)
 {
-    sf::Image image;
-    if (!image.loadFromFile(filename))
+    // Try transparent .png first
+    std::string pngPath = filename;
+    size_t dotPos = pngPath.rfind(".jpg");
+    if (dotPos != std::string::npos)
     {
-        std::cout << "Could not load vehicle image: " << filename << std::endl;
-        return false;
+        pngPath.replace(dotPos, 4, ".png");
     }
 
-    const sf::Vector2u imageSize = image.getSize();
-    const unsigned int pixelCount = imageSize.x * imageSize.y;
-
-    if (pixelCount == 0 || pixelCount > MAX_ASSET_PIXELS)
+    if (texture.loadFromFile(pngPath))
     {
-        std::cout << "Vehicle image has an unsupported size: "
-                  << filename << std::endl;
-        return false;
+        texture.setSmooth(true);
+        sprite.setTexture(texture);
+        return true;
     }
 
-    const int width = imageSize.x;
-    const int height = imageSize.y;
-
-    const sf::Color background = image.getPixel(0, 0);
-    unsigned int stackSize = 0;
-    image.setPixel(0, 0, sf::Color(0, 0, 0, 0));
-    backgroundPixelStack[stackSize++] = 0;
-
-    while (stackSize > 0)
+    if (texture.loadFromFile(filename))
     {
-        const int pixelIndex = backgroundPixelStack[--stackSize];
-        const int x = pixelIndex % width;
-        const int y = pixelIndex / width;
-
-        const int neighborX[4] = {
-            x - 1,
-            x + 1,
-            x,
-            x
-        };
-        const int neighborY[4] = {
-            y,
-            y,
-            y - 1,
-            y + 1
-        };
-
-        for (int direction = 0; direction < 4; direction++)
-        {
-            const int nextX = neighborX[direction];
-            const int nextY = neighborY[direction];
-
-            if (nextX < 0 || nextX >= width ||
-                nextY < 0 || nextY >= height)
-            {
-                continue;
-            }
-
-            const sf::Color nextPixel = image.getPixel(
-                nextX,
-                nextY
-            );
-
-            if (nextPixel.a != 0 && isNearBackground(nextPixel, background))
-            {
-                image.setPixel(
-                    nextX,
-                    nextY,
-                    sf::Color(0, 0, 0, 0)
-                );
-
-                if (stackSize < MAX_ASSET_PIXELS)
-                {
-                    backgroundPixelStack[stackSize++] = nextY * width + nextX;
-                }
-            }
-        }
+        texture.setSmooth(true);
+        sprite.setTexture(texture);
+        return true;
     }
 
-    if (!texture.loadFromImage(image))
-    {
-        std::cout << "Could not prepare vehicle image: " << filename << std::endl;
-        return false;
-    }
-
-    texture.setSmooth(false);
-    sprite.setTexture(texture);
-    return true;
+    std::cout << "Could not load vehicle image: " << filename << std::endl;
+    return false;
 }
 
 bool playSelectedMusic(sf::Music& music)
@@ -150,6 +78,15 @@ bool playSelectedMusic(sf::Music& music)
     music.stop();
     if (!music.openFromFile(MUSIC_TRACK_PATHS[selectedMusicTrack]))
     {
+        // Safe fallback to default track if custom track is missing
+        if (selectedMusicTrack != 0 && music.openFromFile(MUSIC_TRACK_PATHS[0]))
+        {
+            music.setLoop(true);
+            music.setVolume(28.0f);
+            music.play();
+            musicMessage = "Playing default: " + MUSIC_TRACK_NAMES[0];
+            return true;
+        }
         musicMessage = "Could not open " + MUSIC_TRACK_PATHS[selectedMusicTrack];
         std::cout << musicMessage << std::endl;
         return false;
@@ -662,9 +599,9 @@ int main()
 
     sf::Texture vehicleTextures[CHARACTER_COUNT];
     sf::Sprite vehicleSprites[CHARACTER_COUNT];
-    loadVehicleImage(vehicleTextures[0], vehicleSprites[0], "assets/cycle.jpg");
-    loadVehicleImage(vehicleTextures[1], vehicleSprites[1], "assets/motorcycle.jpg");
-    loadVehicleImage(vehicleTextures[2], vehicleSprites[2], "assets/car.jpg");
+    loadVehicleImage(vehicleTextures[0], vehicleSprites[0], "assets/cycle.png");
+    loadVehicleImage(vehicleTextures[1], vehicleSprites[1], "assets/motorcycle.png");
+    loadVehicleImage(vehicleTextures[2], vehicleSprites[2], "assets/car.png");
 
     sf::Texture burgerShopTexture;
     if (!burgerShopTexture.loadFromFile("assets/burger-shop.png"))

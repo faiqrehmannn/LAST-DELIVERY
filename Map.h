@@ -32,8 +32,8 @@ static void loadDefaultCity() {
     }
 
 static bool isSolidTile(int row, int col) {
-        if (row < 0 || row >= MAP_ROWS ||
-            col < 0 || col >= MAP_COLS) {
+        if (row < 0 || row > MAP_ROWS ||
+            col < 0 || col > MAP_COLS) {
             return true;
         }
 

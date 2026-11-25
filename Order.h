@@ -57,7 +57,7 @@ static void resetOrders()
     setOrder(1, "Burger Hub", "House 10", 7, 2, 8, 10, 110.0f, 150);
     setOrder(2, "Coffee Corner", "House 18", 12, 10, 8, 18, 100.0f, 200);
     setOrder(3, "Pizza Shop", "House 2", 2, 4, 11, 2, 95.0f, 250);
-    setOrder(4, "Burger Hub", "House 17", 7, 2, 13, 17, 90.0f, 300);
+    setOrder(4, "Burger Hub", "House 17", 7, 2, 13, 14, 90.0f, 300);
     setOrder(5, "Coffee Corner", "House 15", 12, 16, 6, 15, 85.0f, 400);
 }
 
